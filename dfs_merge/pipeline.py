@@ -9,10 +9,11 @@ from dfs_merge.fanduel import FanDuelCollector
 from dfs_merge.models import AggregatedProjection
 from dfs_merge.name_matching import aggregate_player_projections, render_name_match_report
 from dfs_merge.rotowire import RotoWireCollector
-from dfs_merge.sports import SPORT_ORDER, get_sport_config
+from dfs_merge.sports import SPORT_ORDER, format_sources, get_sport_config
 from dfs_merge.utils import ensure_directory, utc_now_iso, write_json, write_text
 
 POSITION_SORT_ORDERS = {
+    "epl": {"GK": 0, "D": 1, "M": 2, "F": 3},
     "nba": {"PG": 0, "SG": 1, "SF": 2, "PF": 3, "C": 4},
     "nfl": {"QB": 0, "RB": 1, "WR": 2, "TE": 3, "K": 4, "D/ST": 5, "DST": 5},
     "mlb": {"P": 0, "C": 1, "1B": 2, "2B": 3, "3B": 4, "SS": 5, "OF": 6},
@@ -210,11 +211,11 @@ def write_aggregate_html_report(
         for config in (get_sport_config(key) for key in SPORT_ORDER)
     )
     hero_text = (
-        "A GitHub Pages-ready static snapshot of aggregated FanDuel Research and "
-        "RotoWire public data, with streamlined filters, percentile-based grading, "
-        "and sport navigation baked into the page."
+        f"A GitHub Pages-ready static snapshot of aggregated {format_sources(sport_config)} "
+        "public data, with streamlined filters, percentile-based grading, and sport "
+        "navigation baked into the page."
         if is_static_site
-        else "Aggregated FanDuel Research and RotoWire public data with safe name "
+        else f"Aggregated {format_sources(sport_config)} public data with safe name "
         "normalization, salary-aware matching, sortable research-style columns, and "
         "streamlined position and salary filters."
     )
@@ -746,7 +747,7 @@ def write_aggregate_html_report(
           </div>
           <div class="meta-card">
             <span class="meta-label">Sources</span>
-            <span class="meta-value">FanDuel + RotoWire</span>
+            <span class="meta-value">{escape_html(format_sources(sport_config))}</span>
           </div>
           <div class="meta-card">
             <span class="meta-label">Players</span>

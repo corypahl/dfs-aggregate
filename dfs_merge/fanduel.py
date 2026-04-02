@@ -165,17 +165,27 @@ query GetProjections($input: ProjectionsInput!) {
 class FanDuelCollector:
     def __init__(
         self,
-    timeout_seconds: int = 30,
-    browser: str = "auto",
-    headless: bool = True,
-    sport: str = "nba",
-) -> None:
+        timeout_seconds: int = 30,
+        browser: str = "auto",
+        headless: bool = True,
+        sport: str = "nba",
+    ) -> None:
         self.timeout_seconds = timeout_seconds
         self.browser = browser
         self.headless = headless
         self.sport_config = get_sport_config(sport)
 
     def collect(self, raw_dir: Path) -> tuple[list[PlayerProjection], dict]:
+        if not self.sport_config.fanduel_page_url:
+            metadata = {
+                "collection_mode": "not_supported",
+                "sport": self.sport_config.label,
+                "record_count": 0,
+                "reason": "No public FanDuel Research projection source is configured for this sport.",
+            }
+            write_json(raw_dir / "metadata.json", metadata)
+            return [], metadata
+
         session = requests.Session()
         session.headers.update(DEFAULT_HEADERS)
 

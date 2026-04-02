@@ -6,7 +6,7 @@ This project collects public DFS data from FanDuel Research and RotoWire, then a
 - position and salary filters
 - percentile-based `Avg Proj`, `Avg Value`, and `Grade`
 - player highlight badges
-- sport support for `NBA`, `MLB`, and `NFL`
+- sport support for `NBA`, `MLB`, `NFL`, and `EPL`
 
 The app has two deployment modes:
 
@@ -23,6 +23,8 @@ The collector reads the public FanDuel Research pages and uses the public GraphQ
 - MLB: `https://www.fanduel.com/research/mlb/fantasy/dfs-projections`
 - NFL: `https://www.fanduel.com/research/nfl/fantasy/fantasy-football-projections`
 
+EPL currently has no public FanDuel Research projection source configured in this app, so EPL runs as RotoWire-only.
+
 If that request path changes, the code still keeps a Selenium fallback available.
 
 ### RotoWire
@@ -33,6 +35,10 @@ The collector reads the public optimizer endpoints used by the RotoWire app itse
 - `https://www.rotowire.com/daily/<sport>/api/players.php?slateID=<slate_id>`
 
 `siteID=2` is the FanDuel site mapping.
+
+For EPL, the RotoWire slug is `soccer`, so the public optimizer path is:
+
+- `https://www.rotowire.com/daily/soccer/optimizer.php?site=FanDuel`
 
 ## Install
 
