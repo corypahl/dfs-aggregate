@@ -7,7 +7,7 @@ on:
       - main
       - master
   schedule:
-    - cron: "17 */6 * * *"
+    - cron: "0 15 * * *"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

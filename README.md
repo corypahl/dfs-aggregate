@@ -114,7 +114,7 @@ That workflow:
 
 - builds the static Pages site on push to `main` or `master`
 - supports manual runs with `workflow_dispatch`
-- refreshes the snapshot every 6 hours with a schedule
+- refreshes the snapshot daily at `15:00 UTC` which is `11:00 AM` in `America/New_York` during daylight saving time
 - deploys with the official GitHub Pages Actions flow
 
 After pushing the repo to GitHub:
