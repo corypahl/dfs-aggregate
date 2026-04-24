@@ -43,8 +43,21 @@ def run_pipeline(
     ).collect(
         fanduel_raw_dir
     )
-    rotowire_records, rotowire_metadata = RotoWireCollector(sport=sport_config.key).collect(rotowire_raw_dir)
-    aggregated_records, match_report = aggregate_sources(fanduel_records, rotowire_records)
+    rotowire_slate_collections, rotowire_metadata = RotoWireCollector(sport=sport_config.key).collect_all_slates(
+        rotowire_raw_dir
+    )
+    slate_aggregates = build_slate_aggregates(fanduel_records, rotowire_slate_collections)
+    selected_slate_key = select_default_slate_key(slate_aggregates, rotowire_metadata)
+    selected_slate_aggregate = next(
+        (
+            slate_aggregate
+            for slate_aggregate in slate_aggregates
+            if slate_aggregate["key"] == selected_slate_key
+        ),
+        slate_aggregates[0],
+    )
+    aggregated_records = selected_slate_aggregate["records"]
+    match_report = selected_slate_aggregate["match_report"]
 
     aggregate_csv_path = output_dir / "aggregate.csv"
     aggregate_html_path = output_dir / "aggregate.html"
@@ -53,10 +66,11 @@ def run_pipeline(
 
     write_aggregate_csv(aggregated_records, aggregate_csv_path)
     write_aggregate_html_report(
-        aggregated_records,
+        slate_aggregates,
         aggregate_html_path,
         generated_at=generated_at,
         sport=sport_config.key,
+        selected_slate_key=selected_slate_key,
         report_mode=report_mode,
         sport_page_links=sport_page_links,
     )
@@ -70,6 +84,17 @@ def run_pipeline(
         "sport_label": sport_config.label,
         "fanduel": fanduel_metadata,
         "rotowire": rotowire_metadata,
+        "selected_slate_key": selected_slate_key,
+        "selected_slate_label": selected_slate_aggregate["label"],
+        "available_slates": [
+            {
+                "key": slate_aggregate["key"],
+                "label": slate_aggregate["label"],
+                "slate": slate_aggregate["slate"],
+                "record_count": len(slate_aggregate["records"]),
+            }
+            for slate_aggregate in slate_aggregates
+        ],
         "aggregate_record_count": len(aggregated_records),
         "aggregate_csv": str(aggregate_csv_path.resolve()),
         "aggregate_html": str(aggregate_html_path.resolve()),
@@ -87,6 +112,71 @@ def aggregate_sources(
     rotowire_records,
 ) -> tuple[list[AggregatedProjection], dict]:
     return aggregate_player_projections(fanduel_records, rotowire_records)
+
+
+def build_slate_aggregates(
+    fanduel_records: list,
+    rotowire_slate_collections: list[dict],
+) -> list[dict]:
+    if not rotowire_slate_collections:
+        records, match_report = aggregate_sources(fanduel_records, [])
+        return [
+            {
+                "key": "no-slate",
+                "label": "No available slate",
+                "slate": None,
+                "records": records,
+                "match_report": match_report,
+            }
+        ]
+
+    slate_aggregates: list[dict] = []
+    for slate_collection in rotowire_slate_collections:
+        records, match_report = aggregate_sources(fanduel_records, slate_collection["records"])
+        slate = slate_collection.get("slate")
+        slate_aggregates.append(
+            {
+                "key": build_slate_key(slate),
+                "label": format_slate_label(slate),
+                "slate": slate,
+                "records": records,
+                "match_report": match_report,
+            }
+        )
+    return slate_aggregates
+
+
+def select_default_slate_key(slate_aggregates: list[dict], rotowire_metadata: dict) -> str:
+    selected_slate = rotowire_metadata.get("selected_slate") or {}
+    selected_slate_id = selected_slate.get("slateID")
+    if selected_slate_id is not None:
+        candidate_key = f"slate-{selected_slate_id}"
+        if any(slate_aggregate["key"] == candidate_key for slate_aggregate in slate_aggregates):
+            return candidate_key
+    return slate_aggregates[0]["key"]
+
+
+def build_slate_key(slate: dict | None) -> str:
+    if not slate:
+        return "no-slate"
+    slate_id = slate.get("slateID")
+    if slate_id is None:
+        return "no-slate"
+    return f"slate-{slate_id}"
+
+
+def format_slate_label(slate: dict | None) -> str:
+    if not slate:
+        return "No available slate"
+
+    primary_label = slate.get("slateName") or f"Slate {slate.get('slateID', '')}".strip()
+    contest_type = slate.get("contestType")
+    start_date = slate.get("startDateOnly")
+    time_label = slate.get("timeOnly")
+    time_display = " ".join(part for part in [start_date, time_label] if part)
+
+    parts = [primary_label, contest_type, time_display]
+    return " | ".join(part for part in parts if part)
 
 
 def write_aggregate_csv(records: list[AggregatedProjection], path: Path) -> None:
@@ -112,32 +202,7 @@ def write_aggregate_csv(records: list[AggregatedProjection], path: Path) -> None
             writer.writerow(record.to_dict())
 
 
-def write_aggregate_html_report(
-    records: list[AggregatedProjection],
-    path: Path,
-    *,
-    generated_at: str,
-    sport: str,
-    report_mode: str = "local",
-    sport_page_links: dict[str, str] | None = None,
-) -> None:
-    sport_config = get_sport_config(sport)
-    is_static_site = report_mode == "static"
-    columns = [
-        {"key": "name", "label": "Name", "type": "text"},
-        {"key": "rw_position", "label": "RW Position", "type": "text", "filter": "multiselect"},
-        {"key": "salary", "label": "Salary", "type": "number", "currency": True, "filter": "max-number"},
-        {"key": "fd_projection", "label": "FD Proj", "type": "number", "bar": True},
-        {"key": "fd_value", "label": "FD Value", "type": "number", "bar": True},
-        {"key": "rw_projection", "label": "RW Proj", "type": "number", "bar": True},
-        {"key": "rw_value", "label": "RW Value", "type": "number", "bar": True},
-        {"key": "avg_projection", "label": "Avg Proj", "type": "number", "bar": True, "percent": True},
-        {"key": "avg_value", "label": "Avg Value", "type": "number", "bar": True, "percent": True},
-        {"key": "grade", "label": "Grade", "type": "number", "bar": True},
-    ]
-    position_options = build_position_options(records, sport)
-    metric_stats = build_metric_stats(records, [column["key"] for column in columns if column.get("bar")])
-
+def render_table_rows(records: list[AggregatedProjection], columns: list[dict], metric_stats: dict[str, dict]) -> str:
     rows = []
     for record in records:
         cells = []
@@ -185,15 +250,67 @@ def write_aggregate_html_report(
             )
 
         rows.append("<tr>" f"{''.join(cells)}" "</tr>")
+    return "".join(rows)
 
-    header_cells = []
+
+def write_aggregate_html_report(
+    slate_aggregates: list[dict],
+    path: Path,
+    *,
+    generated_at: str,
+    sport: str,
+    selected_slate_key: str,
+    report_mode: str = "local",
+    sport_page_links: dict[str, str] | None = None,
+) -> None:
+    sport_config = get_sport_config(sport)
+    is_static_site = report_mode == "static"
+    columns = [
+        {"key": "name", "label": "Name", "type": "text"},
+        {"key": "rw_position", "label": "RW Position", "type": "text", "filter": "multiselect"},
+        {"key": "salary", "label": "Salary", "type": "number", "currency": True, "filter": "max-number"},
+        {"key": "fd_projection", "label": "FD Proj", "type": "number", "bar": True},
+        {"key": "fd_value", "label": "FD Value", "type": "number", "bar": True},
+        {"key": "rw_projection", "label": "RW Proj", "type": "number", "bar": True},
+        {"key": "rw_value", "label": "RW Value", "type": "number", "bar": True},
+        {"key": "avg_projection", "label": "Avg Proj", "type": "number", "bar": True, "percent": True},
+        {"key": "avg_value", "label": "Avg Value", "type": "number", "bar": True, "percent": True},
+        {"key": "grade", "label": "Grade", "type": "number", "bar": True},
+    ]
     position_column_index = next(
         index for index, column in enumerate(columns) if column["key"] == "rw_position"
     )
     salary_column_index = next(
         index for index, column in enumerate(columns) if column["key"] == "salary"
     )
-    position_pills_html = render_position_pills(position_options, position_column_index)
+    header_cells = []
+    slate_payloads: list[dict] = []
+    for slate_aggregate in slate_aggregates:
+        records = slate_aggregate["records"]
+        position_options = build_position_options(records, sport)
+        metric_stats = build_metric_stats(records, [column["key"] for column in columns if column.get("bar")])
+        slate_payloads.append(
+            {
+                "key": slate_aggregate["key"],
+                "label": slate_aggregate["label"],
+                "playerCount": len(records),
+                "rowsHtml": render_table_rows(records, columns, metric_stats),
+                "positionPillsHtml": render_position_pills(position_options, position_column_index),
+            }
+        )
+
+    selected_slate_payload = next(
+        (
+            slate_payload
+            for slate_payload in slate_payloads
+            if slate_payload["key"] == selected_slate_key
+        ),
+        slate_payloads[0],
+    )
+    selected_slate_key = selected_slate_payload["key"]
+    position_pills_html = selected_slate_payload["positionPillsHtml"]
+    rows_html = selected_slate_payload["rowsHtml"]
+
     def build_sport_option_value(config_key: str) -> str:
         if not is_static_site:
             return config_key
@@ -209,6 +326,15 @@ def write_aggregate_html_report(
             "</option>"
         )
         for config in (get_sport_config(key) for key in SPORT_ORDER)
+    )
+    slate_options_html = "".join(
+        (
+            f'<option value="{escape_attr(slate_payload["key"])}"'
+            f'{" selected" if slate_payload["key"] == selected_slate_key else ""}>'
+            f"{escape_html(slate_payload['label'])}"
+            "</option>"
+        )
+        for slate_payload in slate_payloads
     )
     hero_text = (
         f"A GitHub Pages-ready static snapshot of aggregated {format_sources(sport_config)} "
@@ -236,7 +362,7 @@ def write_aggregate_html_report(
         (
             '<label class="filter-control filter-control-select">'
             '<span class="filter-label">Position</span>'
-            f"{position_pills_html}"
+            f'<div id="position-filter-container">{position_pills_html}</div>'
             '</label>'
         ),
         (
@@ -743,7 +869,7 @@ def write_aggregate_html_report(
           </div>
           <div class="meta-card">
             <span class="meta-label">Slate</span>
-            <span class="meta-value">Main</span>
+            <span class="meta-value" id="slate-value">{escape_html(selected_slate_payload["label"])}</span>
           </div>
           <div class="meta-card">
             <span class="meta-label">Sources</span>
@@ -751,7 +877,7 @@ def write_aggregate_html_report(
           </div>
           <div class="meta-card">
             <span class="meta-label">Players</span>
-            <span class="meta-value">{len(records)}</span>
+            <span class="meta-value" id="player-count">{selected_slate_payload["playerCount"]}</span>
           </div>
         </div>
       </div>
@@ -767,6 +893,9 @@ def write_aggregate_html_report(
           {status_note_html}
           <select id="sport-select" class="toolbar-select" aria-label="Select sport">
             {sport_options_html}
+          </select>
+          <select id="slate-select" class="toolbar-select" aria-label="Select slate">
+            {slate_options_html}
           </select>
           {refresh_button_html}
           <button id="clear-filters" class="action-button secondary" type="button">Clear Filters</button>
@@ -784,7 +913,7 @@ def write_aggregate_html_report(
               </tr>
             </thead>
             <tbody>
-              {''.join(rows)}
+              {rows_html}
             </tbody>
           </table>
         </div>
@@ -794,17 +923,23 @@ def write_aggregate_html_report(
   <script>
     (() => {{
       const pageMode = {json.dumps(report_mode)};
+      const slatePayloads = {json.dumps({payload["key"]: payload for payload in slate_payloads})};
+      const defaultSlateKey = {json.dumps(selected_slate_key)};
       const table = document.getElementById("aggregate-table");
       const tbody = table.tBodies[0];
       const headers = Array.from(table.querySelectorAll(".header-row th"));
       const filterInputs = Array.from(document.querySelectorAll(".filter-input"));
-      const positionPills = Array.from(document.querySelectorAll(".position-pill"));
+      const positionFilterContainer = document.getElementById("position-filter-container");
       const clearButton = document.getElementById("clear-filters");
       const refreshButton = document.getElementById("refresh-data");
       const refreshStatus = document.getElementById("refresh-status");
       const sportSelect = document.getElementById("sport-select");
+      const slateSelect = document.getElementById("slate-select");
+      const slateValue = document.getElementById("slate-value");
+      const playerCountValue = document.getElementById("player-count");
       const visibleCount = document.getElementById("visible-count");
-      const rows = Array.from(tbody.rows);
+      let positionPills = [];
+      let rows = Array.from(tbody.rows);
       const state = {{
         sortIndex: 2,
         sortDir: "desc",
@@ -932,23 +1067,7 @@ def write_aggregate_html_report(
         }});
       }});
 
-      positionPills.forEach((pill) => {{
-        const index = Number(pill.dataset.columnIndex);
-        const value = pill.dataset.value || "";
-        pill.addEventListener("click", () => {{
-          const currentValues = Array.isArray(state.filters[index]) ? [...state.filters[index]] : [];
-          const nextValues = currentValues.includes(value)
-            ? currentValues.filter((item) => item !== value)
-            : [...currentValues, value];
-          state.filters[index] = nextValues;
-          const isActive = nextValues.includes(value);
-          pill.classList.toggle("is-active", isActive);
-          pill.setAttribute("aria-pressed", isActive ? "true" : "false");
-          render();
-        }});
-      }});
-
-      clearButton.addEventListener("click", () => {{
+      const resetFilters = () => {{
         filterInputs.forEach((input) => {{
           input.value = "";
         }});
@@ -959,7 +1078,52 @@ def write_aggregate_html_report(
         state.filters = headers.map((header) =>
           header.dataset.filterMode === "multiselect" ? [] : ""
         );
+      }};
+
+      const bindPositionPills = () => {{
+        positionPills = Array.from(document.querySelectorAll(".position-pill"));
+        positionPills.forEach((pill) => {{
+          const index = Number(pill.dataset.columnIndex);
+          const value = pill.dataset.value || "";
+          pill.addEventListener("click", () => {{
+            const currentValues = Array.isArray(state.filters[index]) ? [...state.filters[index]] : [];
+            const nextValues = currentValues.includes(value)
+              ? currentValues.filter((item) => item !== value)
+              : [...currentValues, value];
+            state.filters[index] = nextValues;
+            const isActive = nextValues.includes(value);
+            pill.classList.toggle("is-active", isActive);
+            pill.setAttribute("aria-pressed", isActive ? "true" : "false");
+            render();
+          }});
+        }});
+      }};
+
+      const loadSlate = (slateKey, updateHash = true) => {{
+        const slatePayload = slatePayloads[slateKey] || slatePayloads[defaultSlateKey];
+        if (!slatePayload) return;
+
+        tbody.innerHTML = slatePayload.rowsHtml;
+        rows = Array.from(tbody.rows);
+        positionFilterContainer.innerHTML = slatePayload.positionPillsHtml;
+        bindPositionPills();
+        resetFilters();
+        slateSelect.value = slatePayload.key;
+        slateValue.textContent = slatePayload.label;
+        playerCountValue.textContent = String(slatePayload.playerCount);
+        if (updateHash) {{
+          window.location.hash = encodeURIComponent(slatePayload.key);
+        }}
         render();
+      }};
+
+      clearButton.addEventListener("click", () => {{
+        resetFilters();
+        render();
+      }});
+
+      slateSelect.addEventListener("change", () => {{
+        loadSlate(slateSelect.value);
       }});
 
       if (pageMode === "static") {{
@@ -1001,7 +1165,12 @@ def write_aggregate_html_report(
         }});
       }}
 
-      render();
+      bindPositionPills();
+      const requestedSlateKey = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+      loadSlate(
+        requestedSlateKey && slatePayloads[requestedSlateKey] ? requestedSlateKey : defaultSlateKey,
+        false,
+      );
     }})();
   </script>
 </body>

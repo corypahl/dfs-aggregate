@@ -6,7 +6,7 @@ import requests
 
 from dfs_merge.models import PlayerProjection
 from dfs_merge.sports import get_sport_config
-from dfs_merge.utils import DEFAULT_HEADERS, clean_name, combine_name, compute_value, write_json, write_text
+from dfs_merge.utils import DEFAULT_HEADERS, clean_name, combine_name, compute_value, ensure_directory, write_json, write_text
 
 
 SITE_NAME = "FanDuel"
@@ -19,6 +19,18 @@ class RotoWireCollector:
         self.sport_config = get_sport_config(sport)
 
     def collect(self, raw_dir: Path) -> tuple[list[PlayerProjection], dict]:
+        slate_collections, metadata = self.collect_all_slates(raw_dir)
+        selected_slate_id = (metadata.get("selected_slate") or {}).get("slateID")
+        if selected_slate_id is not None:
+            for slate_collection in slate_collections:
+                slate = slate_collection.get("slate") or {}
+                if slate.get("slateID") == selected_slate_id:
+                    return slate_collection["records"], metadata
+        if slate_collections:
+            return slate_collections[0]["records"], metadata
+        return [], metadata
+
+    def collect_all_slates(self, raw_dir: Path) -> tuple[list[dict], dict]:
         session = requests.Session()
         session.headers.update(DEFAULT_HEADERS)
 
@@ -35,12 +47,14 @@ class RotoWireCollector:
         slate_payload = slate_response.json()
         write_json(raw_dir / "slates.json", slate_payload)
 
-        slate_candidates = self._candidate_slates(slate_payload)
+        slate_candidates = self._ordered_slates(slate_payload)
         fetch_attempts: list[dict] = []
-        selected_slate = slate_candidates[0] if slate_candidates else None
-        players_payload: list[dict] = []
+        slate_collections: list[dict] = []
+        selected_slate: dict | None = None
+        slates_raw_dir = ensure_directory(raw_dir / "slates")
 
         for index, slate in enumerate(slate_candidates):
+            players_payload: list[dict] = []
             max_attempts = 2 if index == 0 else 1
             for attempt_number in range(1, max_attempts + 1):
                 players_response = session.get(
@@ -59,48 +73,68 @@ class RotoWireCollector:
                         "player_count": len(candidate_players),
                     }
                 )
+                players_payload = candidate_players
                 if candidate_players:
-                    selected_slate = slate
-                    players_payload = candidate_players
                     break
-            if players_payload:
-                break
+
+            slate_raw_dir = ensure_directory(slates_raw_dir / str(slate["slateID"]))
+            write_json(slate_raw_dir / "players.json", players_payload)
+
+            records = [self._to_projection(player) for player in players_payload]
+            slate_collections.append(
+                {
+                    "slate": slate,
+                    "records": records,
+                    "record_count": len(records),
+                }
+            )
+            if selected_slate is None and records:
+                selected_slate = slate
 
         write_json(raw_dir / "player_fetch_attempts.json", fetch_attempts)
-        write_json(raw_dir / "players.json", players_payload)
-
-        players = [self._to_projection(player) for player in players_payload]
+        write_json(
+            raw_dir / "players_by_slate.json",
+            [
+                {
+                    "slate": slate_collection["slate"],
+                    "record_count": slate_collection["record_count"],
+                }
+                for slate_collection in slate_collections
+            ],
+        )
         metadata = {
             "site": SITE_NAME,
             "site_id": SITE_ID,
             "sport": self.sport_config.label,
             "selected_slate": selected_slate,
+            "available_slates": slate_candidates,
             "player_fetch_attempts": fetch_attempts,
-            "record_count": len(players),
+            "record_count": next(
+                (
+                    slate_collection["record_count"]
+                    for slate_collection in slate_collections
+                    if (slate_collection.get("slate") or {}).get("slateID")
+                    == (selected_slate or {}).get("slateID")
+                ),
+                0,
+            ),
         }
-        return players, metadata
+        return slate_collections, metadata
 
-    def _candidate_slates(self, slate_payload: dict) -> list[dict]:
+    def _ordered_slates(self, slate_payload: dict) -> list[dict]:
         slates = slate_payload.get("slates") or []
         if not slates:
             return []
 
-        full_roster_slates = [
-            slate
-            for slate in slates
-            if slate.get("contestType") == "Full Roster"
-        ]
-        if full_roster_slates:
-            return sorted(
-                full_roster_slates,
-                key=lambda slate: (
-                    not bool(slate.get("defaultSlate")),
-                    slate.get("startDate", ""),
-                    slate.get("slateID", 0),
-                ),
-            )
-
-        return slates
+        return sorted(
+            slates,
+            key=lambda slate: (
+                not bool(slate.get("defaultSlate")),
+                slate.get("contestType") != "Full Roster",
+                slate.get("startDate", ""),
+                slate.get("slateID", 0),
+            ),
+        )
 
     def _to_projection(self, player: dict) -> PlayerProjection:
         name = combine_name(player.get("firstName"), player.get("lastName"))

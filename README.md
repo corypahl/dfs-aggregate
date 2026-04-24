@@ -137,5 +137,6 @@ After deployment, the Pages site will serve the static `site/` build artifact.
 - `Avg Proj` and `Avg Value` are stored and displayed as percentiles.
 - `Grade` is calculated as `((Avg Proj percentile * 2) + (Avg Value percentile * 3)) / 5`.
 - Name matching uses exact matches first, then normalization, then salary-gated fuzzy matching.
+- The HTML report includes a RotoWire slate selector. FanDuel stays on its default slate, while the page can switch between the available RotoWire slates for the chosen sport.
 - Position pills are aggregated by base position. For example, an NBA player with `SF/PF` will match both `SF` and `PF`.
 - If a sport shows zero players, that usually means the public source pages are currently empty for that slate or season.
