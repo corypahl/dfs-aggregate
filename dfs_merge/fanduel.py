@@ -301,7 +301,7 @@ class FanDuelCollector:
                     PlayerProjection(
                         source="fanduel",
                         name=name,
-                        position=None,
+                        position=self._format_position(player.get("position")),
                         salary=salary,
                         projection=projection,
                         value=value,
@@ -330,6 +330,15 @@ class FanDuelCollector:
 
         selected = projection_info.get("selectedPositionValue")
         return [str(selected)] if selected else []
+
+    def _format_position(self, positions: object) -> str | None:
+        if isinstance(positions, list):
+            cleaned = [clean_name(str(position)) for position in positions if str(position).strip()]
+            return "/".join(cleaned) if cleaned else None
+        if positions is None:
+            return None
+        text = clean_name(str(positions))
+        return text or None
 
     def _try_extract_rows_from_next_data(self, payload: dict | None) -> list[PlayerProjection]:
         if not payload:

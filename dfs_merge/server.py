@@ -38,6 +38,12 @@ class AggregateApp:
             return self.refresh(self.sport)
         return json.loads(summary_path.read_text(encoding="utf-8"))
 
+    def load_aggregate_data(self) -> dict[str, Any]:
+        data_path = self.output_dir / "aggregate-data.json"
+        if not data_path.exists():
+            self.refresh(self.sport)
+        return json.loads(data_path.read_text(encoding="utf-8"))
+
     def ensure_started(self) -> dict[str, Any]:
         aggregate_html_path = self.output_dir / "aggregate.html"
         if not aggregate_html_path.exists():
@@ -62,8 +68,15 @@ class AggregateRequestHandler(BaseHTTPRequestHandler):
         if path in {"/", "/aggregate", "/aggregate.html"}:
             self._serve_file(self.server.app.output_dir / "aggregate.html", "text/html; charset=utf-8")
             return
+        if path.startswith("/assets/"):
+            relative_path = path.removeprefix("/assets/")
+            self._serve_static_under(self.server.app.output_dir / "assets", relative_path)
+            return
         if path == "/aggregate.csv":
             self._serve_file(self.server.app.output_dir / "aggregate.csv", "text/csv; charset=utf-8")
+            return
+        if path == "/aggregate-data.json":
+            self._serve_file(self.server.app.output_dir / "aggregate-data.json", "application/json; charset=utf-8")
             return
         if path == "/name_match_report.json":
             self._serve_file(self.server.app.output_dir / "name_match_report.json", "application/json; charset=utf-8")
@@ -90,11 +103,12 @@ class AggregateRequestHandler(BaseHTTPRequestHandler):
             payload = self._read_json_body()
             requested_sport = payload.get("sport") if isinstance(payload, dict) else None
             summary = self.server.app.refresh(requested_sport)
+            data = self.server.app.load_aggregate_data()
         except Exception as exc:  # noqa: BLE001
             self._send_json({"error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
             return
 
-        self._send_json(summary)
+        self._send_json({"summary": summary, "data": data})
 
     def log_message(self, format: str, *args) -> None:  # noqa: A003
         return
@@ -110,6 +124,22 @@ class AggregateRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+
+    def _serve_static_under(self, root: Path, relative_path: str) -> None:
+        candidate_path = (root / relative_path).resolve()
+        if root.resolve() not in candidate_path.parents and candidate_path != root.resolve():
+            self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+            return
+
+        content_type = "application/octet-stream"
+        if candidate_path.suffix == ".js":
+            content_type = "text/javascript; charset=utf-8"
+        elif candidate_path.suffix == ".css":
+            content_type = "text/css; charset=utf-8"
+        elif candidate_path.suffix == ".json":
+            content_type = "application/json; charset=utf-8"
+
+        self._serve_file(candidate_path, content_type)
 
     def _send_json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload, indent=2).encode("utf-8")

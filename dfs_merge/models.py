@@ -21,7 +21,9 @@ class PlayerProjection:
 @dataclass(slots=True)
 class AggregatedProjection:
     name: str
+    fd_position: str | None
     rw_position: str | None
+    team: str | None
     salary: float | None
     fd_projection: float | None
     fd_value: float | None

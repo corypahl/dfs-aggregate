@@ -131,7 +131,9 @@ def aggregate_player_projections(
     aggregated_records = [
         AggregatedProjection(
             name=_preferred_name(fanduel_record, rotowire_record),
+            fd_position=fanduel_record.position if fanduel_record else None,
             rw_position=rotowire_record.position if rotowire_record else None,
+            team=_preferred_team(fanduel_record, rotowire_record),
             salary=_preferred_salary(fanduel_record, rotowire_record),
             fd_projection=fanduel_record.projection if fanduel_record else None,
             fd_value=fanduel_record.value if fanduel_record else None,
@@ -430,6 +432,19 @@ def _preferred_salary(
         return fanduel_record.salary
     if rotowire_record:
         return rotowire_record.salary
+    return None
+
+
+def _preferred_team(
+    fanduel_record: PlayerProjection | None,
+    rotowire_record: PlayerProjection | None,
+) -> str | None:
+    if fanduel_record:
+        team = _team_abbreviation(fanduel_record)
+        if team:
+            return team
+    if rotowire_record:
+        return _team_abbreviation(rotowire_record)
     return None
 
 

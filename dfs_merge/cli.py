@@ -111,6 +111,7 @@ def main() -> int:
     print(f"Output directory: {summary['output_dir']}")
     print(f"Aggregate CSV: {summary['aggregate_csv']}")
     print(f"Aggregate HTML: {summary['aggregate_html']}")
+    print(f"Aggregate Data JSON: {summary['aggregate_data_json']}")
     print(f"Name match report (JSON): {summary['name_match_report_json']}")
     print(f"Name match report (TXT): {summary['name_match_report_txt']}")
     print(f"FanDuel records: {summary['fanduel']['record_count']}")

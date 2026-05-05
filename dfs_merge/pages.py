@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from dfs_merge.frontend import copy_frontend_assets
 from dfs_merge.pipeline import run_pipeline
 from dfs_merge.sports import SPORT_ORDER, get_sport_config
 from dfs_merge.utils import ensure_directory, write_text
@@ -19,6 +20,7 @@ def build_pages_site(
 ) -> dict[str, Any]:
     ensure_directory(artifacts_root)
     ensure_directory(site_dir)
+    copy_frontend_assets(site_dir)
 
     sport_page_links = {sport: f"../{sport}/" for sport in SPORT_ORDER}
     sport_summaries: list[dict[str, Any]] = []
@@ -37,10 +39,12 @@ def build_pages_site(
             sport=sport,
             report_mode="static",
             sport_page_links=sport_page_links,
+            asset_path_prefix="../",
         )
         sport_summaries.append(summary)
 
         _copy_if_present(Path(summary["aggregate_html"]), sport_site_dir / "index.html")
+        _copy_if_present(Path(summary["aggregate_data_json"]), sport_site_dir / "aggregate-data.json")
         _copy_if_present(Path(summary["aggregate_csv"]), sport_site_dir / "aggregate.csv")
         _copy_if_present(Path(summary["run_summary"]), sport_site_dir / "run_summary.json")
         _copy_if_present(Path(summary["name_match_report_json"]), sport_site_dir / "name_match_report.json")

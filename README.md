@@ -7,6 +7,7 @@ This project collects public DFS data from FanDuel Research and RotoWire, then a
 - percentile-based `Avg Proj`, `Avg Value`, and `Grade`
 - player highlight badges
 - sport support for `NBA`, `MLB`, `NFL`, and `EPL`
+- a React frontend that renders the aggregate board
 
 The app has two deployment modes:
 
@@ -46,6 +47,18 @@ For EPL, the RotoWire slug is `soccer`, so the public optimizer path is:
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+The Python app expects the production React bundle to exist in `frontend/dist`, so rebuild the frontend after UI changes:
+
+```bash
+cd frontend
+npm run build
+cd ..
 ```
 
 ## Run One Sport
@@ -66,6 +79,7 @@ Outputs written under the chosen output directory:
 
 - `aggregate.csv`
 - `aggregate.html`
+- `aggregate-data.json`
 - `name_match_report.json`
 - `name_match_report.txt`
 - `run_summary.json`
@@ -105,6 +119,7 @@ This writes:
 
 Each sport folder also includes:
 
+- `aggregate-data.json`
 - `aggregate.csv`
 - `run_summary.json`
 - `name_match_report.json`
@@ -137,6 +152,6 @@ After deployment, the Pages site will serve the static `site/` build artifact.
 - `Avg Proj` and `Avg Value` are stored and displayed as percentiles.
 - `Grade` is calculated as `((Avg Proj percentile * 2) + (Avg Value percentile * 3)) / 5`.
 - Name matching uses exact matches first, then normalization, then salary-gated fuzzy matching.
-- The HTML report includes a RotoWire slate selector. FanDuel stays on its default slate, while the page can switch between the available RotoWire slates for the chosen sport.
+- The React report includes a RotoWire slate selector. FanDuel stays on its default slate, while the page can switch between the available RotoWire slates for the chosen sport.
 - Position pills are aggregated by base position. For example, an NBA player with `SF/PF` will match both `SF` and `PF`.
 - If a sport shows zero players, that usually means the public source pages are currently empty for that slate or season.
