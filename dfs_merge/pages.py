@@ -82,6 +82,7 @@ def build_pages_site(
                 "aggregate_csv": str((site_dir / summary["sport"] / "aggregate.csv").resolve()),
                 "generated_at": summary["generated_at"],
                 "aggregate_record_count": summary["aggregate_record_count"],
+                "slate_count": len(summary["rotowire"].get("available_slates") or []),
             }
             for summary in sport_summaries
         ],
@@ -93,7 +94,11 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
     built_at = summaries[0]["generated_at"] if summaries else ""
     sorted_summaries = sorted(
         summaries,
-        key=lambda summary: (summary["aggregate_record_count"], summary["sport_label"]),
+        key=lambda summary: (
+            len(summary["rotowire"].get("available_slates") or []),
+            summary["aggregate_record_count"],
+            summary["sport_label"],
+        ),
         reverse=True,
     )
     for summary in sorted_summaries:
@@ -102,6 +107,7 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
             """
             <tr>
               <td><a class="sport-link" href="./{sport}/"><span class="sport-emoji" aria-hidden="true">{emoji}</span>{label}</a></td>
+              <td class="numeric-cell">{slates}</td>
               <td class="numeric-cell">{players}</td>
               <td class="numeric-cell">{fanduel}</td>
               <td class="numeric-cell">{rotowire}</td>
@@ -110,6 +116,7 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
                 sport=html.escape(summary["sport"], quote=True),
                 emoji=html.escape(SPORT_EMOJI.get(summary["sport"], "•"), quote=True),
                 label=html.escape(sport_config.label, quote=True),
+                slates=html.escape(str(len(summary["rotowire"].get("available_slates") or [])), quote=True),
                 players=html.escape(str(summary["aggregate_record_count"]), quote=True),
                 fanduel=html.escape(str(summary["fanduel"]["record_count"]), quote=True),
                 rotowire=html.escape(str(summary["rotowire"]["record_count"]), quote=True),
@@ -264,6 +271,7 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
           <thead>
             <tr>
               <th>Sport</th>
+              <th class="numeric-cell">Slates</th>
               <th class="numeric-cell">Players</th>
               <th class="numeric-cell">FanDuel</th>
               <th class="numeric-cell">RotoWire</th>
