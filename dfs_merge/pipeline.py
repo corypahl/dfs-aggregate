@@ -18,9 +18,14 @@ POSITION_SORT_ORDERS = {
     "epl": {"GK": 0, "D": 1, "M": 2, "F": 3},
     "nba": {"PG": 0, "SG": 1, "SF": 2, "PF": 3, "C": 4},
     "wnba": {"G": 0, "F": 1},
+    "nhl": {"C": 0, "LW": 1, "RW": 2, "W": 3, "D": 4, "G": 5, "UTIL": 6, "MVP": 7},
     "nfl": {"QB": 0, "RB": 1, "WR": 2, "TE": 3, "K": 4, "D/ST": 5, "DST": 5},
     "mlb": {"P": 0, "C": 1, "1B": 2, "2B": 3, "3B": 4, "SS": 5, "OF": 6},
     "pga": {"G": 0},
+    "mma": {"MVP": 0, "F": 1},
+    "nascar": {"D": 0},
+    "cfb": {"QB": 0, "RB": 1, "WR": 2},
+    "cbb": {"G": 0, "F": 1, "C": 2},
 }
 GENERIC_POSITION_BUCKETS = {"UTIL", "FLEX", "SUPERFLEX", "SUPER FLEX"}
 
@@ -402,7 +407,7 @@ def serialize_aggregated_record(record: AggregatedProjection) -> dict[str, Any]:
 
 def serialize_slate_payload(sport: str, slate_aggregate: dict[str, Any]) -> dict[str, Any]:
     slate = slate_aggregate.get("slate") or {}
-    lineup_template = get_lineup_template(sport, slate.get("contestType"))
+    lineup_template = get_lineup_template(sport, slate.get("contestType")) if slate else None
     salary_cap = slate.get("salaryCap")
     fallback_salary_cap = lineup_template.fallback_salary_cap if lineup_template else None
     builder_enabled = lineup_template is not None

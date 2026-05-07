@@ -77,6 +77,25 @@ SPORT_CONFIGS: dict[str, SportConfig] = {
             ),
         },
     ),
+    "nhl": SportConfig(
+        key="nhl",
+        label="NHL",
+        fanduel_page_url=None,
+        rotowire_slug="nhl",
+        source_labels=("RotoWire",),
+        lineup_templates={
+            "full_roster": LineupTemplate(
+                slots=("C", "C", "W", "W", "W", "W", "D", "D", "G"),
+                position_map={"W": ("LW", "RW")},
+                fallback_salary_cap=55000,
+            ),
+            "single_game": LineupTemplate(
+                slots=("MVP", "UTIL", "UTIL", "UTIL", "UTIL"),
+                position_map={},
+                fallback_salary_cap=60000,
+            ),
+        },
+    ),
     "mlb": SportConfig(
         key="mlb",
         label="MLB",
@@ -108,9 +127,81 @@ SPORT_CONFIGS: dict[str, SportConfig] = {
             ),
         },
     ),
+    "mma": SportConfig(
+        key="mma",
+        label="MMA",
+        fanduel_page_url=None,
+        rotowire_slug="mma",
+        source_labels=("RotoWire",),
+        lineup_templates={
+            "full_roster": LineupTemplate(
+                slots=("MVP", "F", "F", "F", "F", "F"),
+                position_map={},
+                fallback_salary_cap=100,
+            ),
+        },
+    ),
+    "nascar": SportConfig(
+        key="nascar",
+        label="NASCAR",
+        fanduel_page_url=None,
+        rotowire_slug="racing",
+        source_labels=("RotoWire",),
+        lineup_templates={
+            "full_roster": LineupTemplate(
+                slots=("D", "D", "D", "D", "D"),
+                position_map={},
+                fallback_salary_cap=50000,
+            ),
+        },
+    ),
+    "cfb": SportConfig(
+        key="cfb",
+        label="CFB",
+        fanduel_page_url=None,
+        rotowire_slug="cfb",
+        source_labels=("RotoWire",),
+        lineup_templates={
+            "full_roster": LineupTemplate(
+                slots=("QB", "RB", "RB", "WR", "WR", "WR", "SUPER FLEX"),
+                position_map={"SUPER FLEX": ("QB", "RB", "WR")},
+                fallback_salary_cap=60000,
+            ),
+        },
+    ),
+    "cbb": SportConfig(
+        key="cbb",
+        label="CBB",
+        fanduel_page_url=None,
+        rotowire_slug="ncaab",
+        source_labels=("RotoWire",),
+        lineup_templates={
+            "full_roster": LineupTemplate(
+                slots=("G", "G", "F", "F", "C", "UTIL", "UTIL", "UTIL"),
+                position_map={"UTIL": ("G", "F", "C")},
+                fallback_salary_cap=60000,
+            ),
+        },
+    ),
+    "tennis": SportConfig(
+        key="tennis",
+        label="Tennis",
+        fanduel_page_url=None,
+        rotowire_slug="tennis",
+        source_labels=("RotoWire",),
+        lineup_templates={},
+    ),
+    "cricket": SportConfig(
+        key="cricket",
+        label="Cricket",
+        fanduel_page_url=None,
+        rotowire_slug="cricket",
+        source_labels=("RotoWire",),
+        lineup_templates={},
+    ),
 }
 
-SPORT_ORDER = ["nfl", "nba", "wnba", "mlb", "pga", "epl"]
+SPORT_ORDER = ["nfl", "nba", "wnba", "nhl", "mlb", "pga", "mma", "nascar", "cfb", "cbb", "tennis", "cricket", "epl"]
 
 
 def format_sources(config: SportConfig) -> str:
