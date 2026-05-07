@@ -11,6 +11,22 @@ from dfs_merge.sports import SPORT_ORDER, get_sport_config
 from dfs_merge.utils import ensure_directory, write_text
 
 
+SPORT_EMOJI = {
+    "nfl": "🏈",
+    "nba": "🏀",
+    "wnba": "🏀",
+    "nhl": "🏒",
+    "mlb": "⚾",
+    "pga": "⛳",
+    "mma": "🥊",
+    "nascar": "🏁",
+    "cfb": "🏈",
+    "cbb": "🏀",
+    "cricket": "🏏",
+    "epl": "⚽",
+}
+
+
 def build_pages_site(
     *,
     artifacts_root: Path,
@@ -73,28 +89,30 @@ def build_pages_site(
 
 
 def render_pages_index(summaries: list[dict[str, Any]]) -> str:
-    cards = []
-    for summary in summaries:
+    rows = []
+    built_at = summaries[0]["generated_at"] if summaries else ""
+    sorted_summaries = sorted(
+        summaries,
+        key=lambda summary: (summary["aggregate_record_count"], summary["sport_label"]),
+        reverse=True,
+    )
+    for summary in sorted_summaries:
         sport_config = get_sport_config(summary["sport"])
-        cards.append(
+        rows.append(
             """
-            <a class="sport-card" href="./{sport}/">
-              <span class="sport-card-label">{label}</span>
-              <strong class="sport-card-count">{players}</strong>
-              <span class="sport-card-copy">players aggregated</span>
-              <dl class="sport-card-meta">
-                <div><dt>FanDuel</dt><dd>{fanduel}</dd></div>
-                <div><dt>RotoWire</dt><dd>{rotowire}</dd></div>
-              </dl>
-              <span class="sport-card-updated">Built {updated}</span>
-            </a>
+            <tr>
+              <td><a class="sport-link" href="./{sport}/"><span class="sport-emoji" aria-hidden="true">{emoji}</span>{label}</a></td>
+              <td class="numeric-cell">{players}</td>
+              <td class="numeric-cell">{fanduel}</td>
+              <td class="numeric-cell">{rotowire}</td>
+            </tr>
             """.format(
                 sport=html.escape(summary["sport"], quote=True),
+                emoji=html.escape(SPORT_EMOJI.get(summary["sport"], "•"), quote=True),
                 label=html.escape(sport_config.label, quote=True),
                 players=html.escape(str(summary["aggregate_record_count"]), quote=True),
                 fanduel=html.escape(str(summary["fanduel"]["record_count"]), quote=True),
                 rotowire=html.escape(str(summary["rotowire"]["record_count"]), quote=True),
-                updated=html.escape(summary["generated_at"], quote=True),
             ).strip()
         )
 
@@ -131,39 +149,22 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
     .hero-inner {{
       max-width: 1180px;
       margin: 0 auto;
-      padding: 48px 24px 112px;
+      padding: 48px 24px 96px;
     }}
-    .eyebrow {{
+    .built-at {{
       display: inline-flex;
       align-items: center;
-      gap: 8px;
       margin-bottom: 14px;
       color: #a9bfd8;
-      font-size: 0.76rem;
+      font-size: 0.82rem;
       font-weight: 700;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-    }}
-    .eyebrow::before {{
-      content: "";
-      width: 10px;
-      height: 10px;
-      border-radius: 999px;
-      background: #1d68ff;
-      box-shadow: 0 0 0 4px rgba(29, 104, 255, 0.16);
+      letter-spacing: 0.04em;
     }}
     h1 {{
       margin: 0;
       font-size: clamp(2.4rem, 5vw, 4rem);
       line-height: 1.02;
       letter-spacing: -0.04em;
-    }}
-    .hero-copy {{
-      margin: 16px 0 0;
-      max-width: 720px;
-      color: #d7e3f4;
-      font-size: 1rem;
-      line-height: 1.6;
     }}
     .content {{
       max-width: 1180px;
@@ -174,83 +175,62 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
       background: rgba(255, 255, 255, 0.96);
       border: 1px solid var(--line);
       border-radius: 22px;
-      padding: 22px;
+      padding: 0;
       box-shadow: 0 24px 60px rgba(10, 24, 44, 0.12);
+      overflow: hidden;
     }}
-    .panel-copy {{
-      margin: 0 0 20px;
-      color: var(--muted);
-      line-height: 1.55;
-    }}
-    .sport-grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-    }}
-    .sport-card {{
-      display: grid;
-      gap: 8px;
-      padding: 18px;
-      border: 1px solid var(--line);
-      border-radius: 18px;
+    .sport-table-shell {{
+      overflow-x: auto;
       background: #ffffff;
-      text-decoration: none;
-      color: inherit;
-      box-shadow: 0 12px 30px rgba(10, 24, 44, 0.08);
-      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
     }}
-    .sport-card:hover {{
-      transform: translateY(-2px);
-      border-color: #9cb5d6;
-      box-shadow: 0 18px 36px rgba(10, 24, 44, 0.12);
+    .sport-table {{
+      width: 100%;
+      min-width: 720px;
+      border-collapse: collapse;
     }}
-    .sport-card-label {{
-      font-size: 0.76rem;
-      font-weight: 700;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--muted);
+    .sport-table th,
+    .sport-table td {{
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      white-space: nowrap;
     }}
-    .sport-card-count {{
-      font-size: 2rem;
-      letter-spacing: -0.05em;
-    }}
-    .sport-card-copy {{
-      color: var(--muted);
-    }}
-    .sport-card-meta {{
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-      margin: 6px 0 0;
-    }}
-    .sport-card-meta div {{
-      padding: 10px 12px;
-      border-radius: 14px;
+    .sport-table th {{
       background: #f4f7fb;
-    }}
-    .sport-card-meta dt {{
-      margin: 0 0 4px;
+      color: var(--muted);
       font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.14em;
+      font-weight: 800;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: var(--muted);
     }}
-    .sport-card-meta dd {{
-      margin: 0;
+    .sport-table tbody tr:last-child td {{
+      border-bottom: 0;
+    }}
+    .sport-table tbody tr:hover td {{
+      background: #eef5ff;
+    }}
+    .sport-link {{
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--header);
+      font-weight: 800;
+      text-decoration: none;
+    }}
+    .sport-link:hover {{
+      color: #1d68ff;
+    }}
+    .sport-emoji {{
+      display: inline-flex;
+      width: 1.4rem;
+      justify-content: center;
+      font-size: 1.05rem;
+      line-height: 1;
+    }}
+    .numeric-cell {{
+      text-align: right;
+      font-variant-numeric: tabular-nums;
       font-weight: 700;
-    }}
-    .sport-card-updated {{
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 0.82rem;
-    }}
-    .footnote {{
-      margin-top: 18px;
-      color: var(--muted);
-      font-size: 0.84rem;
-      line-height: 1.55;
     }}
     code {{
       font-family: Consolas, "SFMono-Regular", monospace;
@@ -273,18 +253,27 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
 <body>
   <section class="hero">
     <div class="hero-inner">
-      <span class="eyebrow">GitHub Pages Ready</span>
       <h1>DFS Aggregate</h1>
-      <p class="hero-copy">Static sport pages generated from the public FanDuel Research and RotoWire data sources. Each page keeps the sortable table, percentile-driven grading, and streamlined filters, while GitHub Actions handles rebuilding the snapshot.</p>
+      <span class="built-at">Built {html.escape(built_at, quote=True)}</span>
     </div>
   </section>
   <main class="content">
     <section class="panel">
-      <p class="panel-copy">Choose a sport to open its latest aggregate board. The Pages site is static by design, so local live refresh still lives in <code>python main.py --serve</code>, while GitHub Actions publishes the static snapshot here.</p>
-      <div class="sport-grid">
-        {"".join(cards)}
+      <div class="sport-table-shell">
+        <table class="sport-table">
+          <thead>
+            <tr>
+              <th>Sport</th>
+              <th class="numeric-cell">Players</th>
+              <th class="numeric-cell">FanDuel</th>
+              <th class="numeric-cell">RotoWire</th>
+            </tr>
+          </thead>
+          <tbody>
+            {"".join(rows)}
+          </tbody>
+        </table>
       </div>
-      <p class="footnote">If a sport has zero players, that usually means the public source pages are currently empty for that slate or season.</p>
     </section>
   </main>
 </body>
