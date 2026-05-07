@@ -15,12 +15,24 @@ function buildStatusText(pageMode, generatedAt, refreshError) {
   return `Last updated: ${generatedAt}`;
 }
 
+function getInitialSlateKey(initialData) {
+  const fallback = initialData?.selected_slate_key || initialData?.slates?.[0]?.key || "no-slate";
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  const requestedSlate = new URLSearchParams(window.location.search).get("slate");
+  if (!requestedSlate) {
+    return fallback;
+  }
+
+  return initialData?.slates?.some((slate) => slate.key === requestedSlate) ? requestedSlate : fallback;
+}
+
 export default function App({ bootstrap }) {
   const [data, setData] = useState(bootstrap.initialData || null);
   const [pendingSport, setPendingSport] = useState(bootstrap.initialSport || bootstrap.initialData?.sport || "nba");
-  const [selectedSlateKey, setSelectedSlateKey] = useState(
-    bootstrap.initialData?.selected_slate_key || bootstrap.initialData?.slates?.[0]?.key || "no-slate",
-  );
+  const [selectedSlateKey, setSelectedSlateKey] = useState(getInitialSlateKey(bootstrap.initialData));
   const [selectedPositions, setSelectedPositions] = useState([]);
   const [maxSalary, setMaxSalary] = useState("");
   const [sortKey, setSortKey] = useState("salary");

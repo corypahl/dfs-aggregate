@@ -103,11 +103,18 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
     )
     for summary in sorted_summaries:
         sport_config = get_sport_config(summary["sport"])
+        slate_options = build_slate_options(summary)
         rows.append(
             """
             <tr>
               <td><a class="sport-link" href="./{sport}/"><span class="sport-emoji" aria-hidden="true">{emoji}</span>{label}</a></td>
               <td class="numeric-cell">{slates}</td>
+              <td>
+                <select class="slate-select" aria-label="Select {label} slate">
+                  {slate_options}
+                </select>
+              </td>
+              <td class="action-cell"><button class="go-button" type="button" data-base-href="./{sport}/">Go</button></td>
               <td class="numeric-cell">{players}</td>
               <td class="numeric-cell">{fanduel}</td>
               <td class="numeric-cell">{rotowire}</td>
@@ -117,6 +124,7 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
                 emoji=html.escape(SPORT_EMOJI.get(summary["sport"], "•"), quote=True),
                 label=html.escape(sport_config.label, quote=True),
                 slates=html.escape(str(len(summary["rotowire"].get("available_slates") or [])), quote=True),
+                slate_options=slate_options,
                 players=html.escape(str(summary["aggregate_record_count"]), quote=True),
                 fanduel=html.escape(str(summary["fanduel"]["record_count"]), quote=True),
                 rotowire=html.escape(str(summary["rotowire"]["record_count"]), quote=True),
@@ -192,7 +200,7 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
     }}
     .sport-table {{
       width: 100%;
-      min-width: 720px;
+      min-width: 980px;
       border-collapse: collapse;
     }}
     .sport-table th,
@@ -239,6 +247,37 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
       font-variant-numeric: tabular-nums;
       font-weight: 700;
     }}
+    .slate-select {{
+      width: min(100%, 260px);
+      height: 36px;
+      border: 1px solid #c8d4e2;
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.9rem;
+      font-weight: 700;
+      padding: 0 34px 0 10px;
+    }}
+    .action-cell {{
+      width: 1%;
+      text-align: right;
+    }}
+    .go-button {{
+      height: 36px;
+      border: 0;
+      border-radius: 8px;
+      background: #128000;
+      color: #ffffff;
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 800;
+      padding: 0 16px;
+    }}
+    .go-button:hover {{
+      background: #0d6500;
+    }}
     code {{
       font-family: Consolas, "SFMono-Regular", monospace;
       font-size: 0.95em;
@@ -272,6 +311,8 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
             <tr>
               <th>Sport</th>
               <th class="numeric-cell">Slates</th>
+              <th>Slate</th>
+              <th class="action-cell"></th>
               <th class="numeric-cell">Players</th>
               <th class="numeric-cell">FanDuel</th>
               <th class="numeric-cell">RotoWire</th>
@@ -284,9 +325,51 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
       </div>
     </section>
   </main>
+  <script>
+    document.querySelectorAll(".go-button").forEach((button) => {{
+      button.addEventListener("click", () => {{
+        const row = button.closest("tr");
+        const select = row ? row.querySelector(".slate-select") : null;
+        const slateKey = select ? select.value : "";
+        const target = slateKey
+          ? `${{button.dataset.baseHref}}?slate=${{encodeURIComponent(slateKey)}}`
+          : button.dataset.baseHref;
+        window.location.href = target;
+      }});
+    }});
+  </script>
 </body>
 </html>
 """
+
+
+def build_slate_options(summary: dict[str, Any]) -> str:
+    slate_options = summary.get("available_slates") or []
+    if not slate_options:
+        return '<option value="">No available slates</option>'
+
+    default_key = ""
+    for slate_option in slate_options:
+        slate_name = (slate_option.get("slate") or {}).get("slateName") or ""
+        if slate_name.casefold() == "main":
+            default_key = str(slate_option.get("key") or "")
+            break
+    if not default_key:
+        default_key = str(summary.get("selected_slate_key") or slate_options[0].get("key") or "")
+
+    options = []
+    for slate_option in slate_options:
+        option_key = str(slate_option.get("key") or "")
+        option_label = str(slate_option.get("label") or option_key or "Unnamed slate")
+        selected = " selected" if option_key == default_key else ""
+        options.append(
+            '<option value="{value}"{selected}>{label}</option>'.format(
+                value=html.escape(option_key, quote=True),
+                selected=selected,
+                label=html.escape(option_label, quote=True),
+            )
+        )
+    return "\n".join(options)
 
 
 def _copy_if_present(source: Path, destination: Path) -> None:
