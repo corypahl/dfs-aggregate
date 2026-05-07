@@ -102,20 +102,83 @@ export function metricBarColor(ratio) {
   return `hsl(${Math.round(hue)} 72% 45%)`;
 }
 
-export function buildPlayerBadges(record) {
+function hasNumericValue(record, key) {
+  return record[key] !== null && record[key] !== undefined && Number.isFinite(Number(record[key]));
+}
+
+function getAllowedPositions(slot, lineupTemplate) {
+  return lineupTemplate?.position_map?.[slot] || [slot];
+}
+
+function isEligibleForSlot(record, slot, lineupTemplate) {
+  const playerPositions = record.builder_position_values || [];
+  const allowedPositions = getAllowedPositions(slot, lineupTemplate);
+  return allowedPositions.some((position) => playerPositions.includes(position));
+}
+
+function uniqueLineupSlots(lineupTemplate) {
+  const seen = new Set();
+  return (lineupTemplate?.slots || []).filter((slot) => {
+    if (seen.has(slot)) {
+      return false;
+    }
+    seen.add(slot);
+    return true;
+  });
+}
+
+export function buildPositionLeaderBadges(records, lineupTemplate) {
+  const badgesByName = {};
+  const metrics = [
+    { key: "avg_projection", label: "top projection", className: "name-badge-projection" },
+    { key: "grade", label: "top grade", className: "name-badge-grade" },
+    { key: "avg_value", label: "top value", className: "name-badge-value" },
+  ];
+
+  uniqueLineupSlots(lineupTemplate).forEach((slot) => {
+    const candidates = records.filter((record) => isEligibleForSlot(record, slot, lineupTemplate));
+    metrics.forEach((metric) => {
+      const leader = candidates.reduce((best, candidate) => {
+        if (!hasNumericValue(candidate, metric.key)) {
+          return best;
+        }
+        if (!best || Number(candidate[metric.key]) > Number(best[metric.key])) {
+          return candidate;
+        }
+        return best;
+      }, null);
+
+      if (!leader) {
+        return;
+      }
+
+      badgesByName[leader.name] = badgesByName[leader.name] || [];
+      badgesByName[leader.name].push({
+        key: `${slot}-${metric.key}`,
+        label: `${slot} ${metric.label}`,
+        text: slot,
+        className: metric.className,
+      });
+    });
+  });
+
+  return badgesByName;
+}
+
+export function buildPlayerBadges(record, positionBadges = []) {
   const projectionHot = record.avg_projection !== null && record.avg_projection >= 90;
   const valueHot = record.avg_value !== null && record.avg_value >= 90;
+  const sourceBadges = [];
 
   if (projectionHot && valueHot) {
-    return [{ key: "star", label: "Elite projection and value", text: "★", className: "name-badge-star" }];
+    sourceBadges.push({ key: "star", label: "Elite projection and value", text: "\u2605", className: "name-badge-star" });
+  } else if (valueHot) {
+    sourceBadges.push({ key: "value", label: "Elite value", text: "$", className: "name-badge-value" });
+  } else if (projectionHot) {
+    sourceBadges.push({ key: "projection", label: "Elite projection", text: "\u{1F4AA}", className: "name-badge-projection" });
   }
-  if (valueHot) {
-    return [{ key: "value", label: "Elite value", text: "$", className: "name-badge-value" }];
-  }
-  if (projectionHot) {
-    return [{ key: "projection", label: "Elite projection", text: "💪", className: "name-badge-projection" }];
-  }
-  return [];
+
+  return [...sourceBadges, ...positionBadges];
 }
 
 export function computeBlendedProjection(record) {

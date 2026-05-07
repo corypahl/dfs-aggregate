@@ -22,87 +22,6 @@ function isEligibleForSlot(record, slot, lineupTemplate) {
   return allowedPositions.some((position) => playerPositions.includes(position));
 }
 
-function buildRecommendations(records, lineup, lineupTemplate, selectedNames, avgPerSlot, mode) {
-  const recommendations = [];
-  for (const lineupSlot of lineup) {
-    if (lineupSlot.player) {
-      continue;
-    }
-
-    const candidates = records
-      .filter((record) => !selectedNames.includes(record.name))
-      .filter((record) => isEligibleForSlot(record, lineupSlot.slot, lineupTemplate))
-      .filter((record) => (mode === "shortlist" ? record.salary !== null && record.salary <= avgPerSlot : true))
-      .sort((left, right) => (right.grade || -1) - (left.grade || -1));
-
-    if (candidates.length) {
-      recommendations.push({ ...candidates[0], recommendedFor: lineupSlot.slot });
-    } else {
-      recommendations.push({
-        name: mode === "shortlist" ? "--- Open Slot ---" : "--- No Players ---",
-        team: "",
-        builder_position: lineupSlot.slot,
-        salary: null,
-        grade: null,
-        blended_projection: null,
-        recommendedFor: lineupSlot.slot,
-        isPlaceholder: true,
-      });
-    }
-  }
-  return recommendations;
-}
-
-function RecommendationTable({ title, records, onSelectPlayer }) {
-  if (!records.length) {
-    return null;
-  }
-
-  return (
-    <div className="builder-card">
-      <div className="builder-card-header">
-        <h3>{title}</h3>
-      </div>
-      <div className="builder-table-shell">
-        <table className="builder-table compact">
-          <thead>
-            <tr>
-              <th>Slot</th>
-              <th>Player</th>
-              <th>Team</th>
-              <th>Pos</th>
-              <th>Salary</th>
-              <th>Proj</th>
-              <th>Grade</th>
-            </tr>
-          </thead>
-          <tbody>
-            {records.map((record) => (
-              <tr key={`${title}-${record.recommendedFor}-${record.name}`}>
-                <td>{record.recommendedFor}</td>
-                <td>
-                  {record.isPlaceholder ? (
-                    <span className="placeholder-text">{record.name}</span>
-                  ) : (
-                    <button type="button" className="inline-player-button" onClick={() => onSelectPlayer(record)}>
-                      {record.name}
-                    </button>
-                  )}
-                </td>
-                <td>{record.team || ""}</td>
-                <td>{record.builder_position || ""}</td>
-                <td>{formatSalary(record.salary)}</td>
-                <td>{record.blended_projection !== null && record.blended_projection !== undefined ? formatNumber(record.blended_projection) : ""}</td>
-                <td>{record.grade !== null && record.grade !== undefined ? formatNumber(record.grade) : ""}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 export default function LineupBuilder({ slate, records, sportLabel, lineup, setLineup }) {
   const selectedNames = useMemo(
     () => lineup.map((lineupSlot) => lineupSlot.player?.name).filter(Boolean),
@@ -163,15 +82,6 @@ export default function LineupBuilder({ slate, records, sportLabel, lineup, setL
       ),
     );
   };
-
-  const bestPlays = useMemo(
-    () => buildRecommendations(records, lineup, slate?.lineup_template, selectedNames, lineupStats.avgPerSlot, "best"),
-    [lineup, lineupStats.avgPerSlot, records, selectedNames, slate?.lineup_template],
-  );
-  const shortlist = useMemo(
-    () => buildRecommendations(records, lineup, slate?.lineup_template, selectedNames, lineupStats.avgPerSlot, "shortlist"),
-    [lineup, lineupStats.avgPerSlot, records, selectedNames, slate?.lineup_template],
-  );
 
   if (!slate?.builder_enabled) {
     return (
@@ -284,14 +194,6 @@ export default function LineupBuilder({ slate, records, sportLabel, lineup, setL
         </div>
       </div>
 
-      <div className="builder-grid">
-        <RecommendationTable
-          title={`Shortlist (${formatSalary(lineupStats.avgPerSlot)} max average slot spend)`}
-          records={shortlist}
-          onSelectPlayer={addPlayerToLineup}
-        />
-        <RecommendationTable title="Best Plays" records={bestPlays} onSelectPlayer={addPlayerToLineup} />
-      </div>
     </section>
   );
 }

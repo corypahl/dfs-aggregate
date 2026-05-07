@@ -7,6 +7,8 @@ export default function FilterPanel({
   onTogglePosition,
   maxSalary,
   onMaxSalaryChange,
+  taggedOnly,
+  onTaggedOnlyChange,
   onClearFilters,
 }) {
   return (
@@ -49,6 +51,18 @@ export default function FilterPanel({
             onChange={(event) => onMaxSalaryChange(event.target.value)}
           />
         </label>
+
+        <div className="filter-control filter-control-toggle">
+          <span className="filter-label">Tags</span>
+          <button
+            type="button"
+            className={`tag-filter-button${taggedOnly ? " is-active" : ""}`}
+            aria-pressed={taggedOnly ? "true" : "false"}
+            onClick={() => onTaggedOnlyChange(!taggedOnly)}
+          >
+            Tagged only
+          </button>
+        </div>
       </div>
 
       <div className="filter-actions">

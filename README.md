@@ -6,7 +6,7 @@ This project collects public DFS data from FanDuel Research and RotoWire, then a
 - position and salary filters
 - percentile-based `Avg Proj`, `Avg Value`, and `Grade`
 - player highlight badges
-- sport support for `NBA`, `MLB`, `NFL`, and `EPL`
+- sport support for `NBA`, `WNBA`, `MLB`, `NFL`, `PGA`, and `EPL`
 - a React frontend that renders the aggregate board
 
 The app has two deployment modes:
@@ -24,7 +24,7 @@ The collector reads the public FanDuel Research pages and uses the public GraphQ
 - MLB: `https://www.fanduel.com/research/mlb/fantasy/dfs-projections`
 - NFL: `https://www.fanduel.com/research/nfl/fantasy/fantasy-football-projections`
 
-EPL currently has no public FanDuel Research projection source configured in this app, so EPL runs as RotoWire-only.
+EPL, WNBA, and PGA currently have no public FanDuel Research projection source configured in this app, so they run as RotoWire-only.
 
 If that request path changes, the code still keeps a Selenium fallback available.
 
@@ -40,6 +40,11 @@ The collector reads the public optimizer endpoints used by the RotoWire app itse
 For EPL, the RotoWire slug is `soccer`, so the public optimizer path is:
 
 - `https://www.rotowire.com/daily/soccer/optimizer.php?site=FanDuel`
+
+WNBA uses the `wnba` slug and PGA uses the `golf` slug:
+
+- `https://www.rotowire.com/daily/wnba/optimizer.php?site=FanDuel`
+- `https://www.rotowire.com/daily/golf/optimizer.php?site=FanDuel`
 
 ## Install
 
@@ -113,9 +118,12 @@ python main.py --build-pages --output-dir artifacts/pages-build --site-dir site
 This writes:
 
 - `site/index.html`
-- `site/nba/index.html`
-- `site/mlb/index.html`
 - `site/nfl/index.html`
+- `site/nba/index.html`
+- `site/wnba/index.html`
+- `site/mlb/index.html`
+- `site/pga/index.html`
+- `site/epl/index.html`
 
 Each sport folder also includes:
 

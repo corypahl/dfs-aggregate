@@ -63,6 +63,20 @@ SPORT_CONFIGS: dict[str, SportConfig] = {
             ),
         },
     ),
+    "wnba": SportConfig(
+        key="wnba",
+        label="WNBA",
+        fanduel_page_url=None,
+        rotowire_slug="wnba",
+        source_labels=("RotoWire",),
+        lineup_templates={
+            "full_roster": LineupTemplate(
+                slots=("G", "G", "G", "F", "F", "F", "F"),
+                position_map={},
+                fallback_salary_cap=40000,
+            ),
+        },
+    ),
     "mlb": SportConfig(
         key="mlb",
         label="MLB",
@@ -80,9 +94,23 @@ SPORT_CONFIGS: dict[str, SportConfig] = {
             ),
         },
     ),
+    "pga": SportConfig(
+        key="pga",
+        label="PGA",
+        fanduel_page_url=None,
+        rotowire_slug="golf",
+        source_labels=("RotoWire",),
+        lineup_templates={
+            "full_roster": LineupTemplate(
+                slots=("G", "G", "G", "G", "G", "G"),
+                position_map={},
+                fallback_salary_cap=60000,
+            ),
+        },
+    ),
 }
 
-SPORT_ORDER = ["nfl", "nba", "mlb", "epl"]
+SPORT_ORDER = ["nfl", "nba", "wnba", "mlb", "pga", "epl"]
 
 
 def format_sources(config: SportConfig) -> str:

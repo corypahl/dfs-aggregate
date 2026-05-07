@@ -3,7 +3,7 @@ import AggregateTable from "./components/AggregateTable.jsx";
 import FilterPanel from "./components/FilterPanel.jsx";
 import LineupBuilder, { buildEmptyLineup } from "./components/LineupBuilder.jsx";
 import Toolbar from "./components/Toolbar.jsx";
-import { buildMetricStats, COLUMN_DEFS, parseMaxSalary } from "./utils.js";
+import { buildMetricStats, buildPlayerBadges, buildPositionLeaderBadges, COLUMN_DEFS, parseMaxSalary } from "./utils.js";
 
 function buildStatusText(pageMode, generatedAt, refreshError) {
   if (refreshError) {
@@ -28,6 +28,7 @@ export default function App({ bootstrap }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState("");
   const [lineup, setLineup] = useState([]);
+  const [taggedOnly, setTaggedOnly] = useState(false);
 
   const selectedSlate = useMemo(() => {
     if (!data?.slates?.length) {
@@ -46,7 +47,7 @@ export default function App({ bootstrap }) {
     setLineup(buildEmptyLineup(selectedSlate?.lineup_template));
   }, [selectedSlate?.key, selectedSlate?.lineup_template]);
 
-  const filteredRecords = useMemo(() => {
+  const baseFilteredRecords = useMemo(() => {
     if (!selectedSlate) {
       return [];
     }
@@ -62,6 +63,17 @@ export default function App({ bootstrap }) {
       return matchesPosition && matchesSalary;
     });
   }, [maxSalary, selectedPositions, selectedSlate]);
+  const positionLeaderBadges = useMemo(
+    () => buildPositionLeaderBadges(baseFilteredRecords, selectedSlate?.lineup_template),
+    [baseFilteredRecords, selectedSlate?.lineup_template],
+  );
+  const filteredRecords = useMemo(
+    () =>
+      taggedOnly
+        ? baseFilteredRecords.filter((record) => buildPlayerBadges(record, positionLeaderBadges[record.name] || []).length > 0)
+        : baseFilteredRecords,
+    [baseFilteredRecords, positionLeaderBadges, taggedOnly],
+  );
 
   const sportOptions = bootstrap.sportOptions || [];
   const pageMode = bootstrap.pageMode || "local";
@@ -71,6 +83,7 @@ export default function App({ bootstrap }) {
     setSelectedSlateKey(nextSlateKey);
     setSelectedPositions([]);
     setMaxSalary("");
+    setTaggedOnly(false);
     setLineup([]);
   };
 
@@ -121,6 +134,7 @@ export default function App({ bootstrap }) {
         setSelectedSlateKey(payload.data.selected_slate_key || payload.data.slates?.[0]?.key || "no-slate");
         setSelectedPositions([]);
         setMaxSalary("");
+        setTaggedOnly(false);
         setSortKey("salary");
         setSortDir("desc");
         setLineup([]);
@@ -252,9 +266,12 @@ export default function App({ bootstrap }) {
           }
           maxSalary={maxSalary}
           onMaxSalaryChange={setMaxSalary}
+          taggedOnly={taggedOnly}
+          onTaggedOnlyChange={setTaggedOnly}
           onClearFilters={() => {
             setSelectedPositions([]);
             setMaxSalary("");
+            setTaggedOnly(false);
           }}
         />
 
@@ -268,6 +285,7 @@ export default function App({ bootstrap }) {
           onPlayerSelect={selectedSlate?.builder_enabled ? addPlayerToLineup : undefined}
           selectedPlayerNames={selectedPlayerNames}
           canSelectPlayer={canSelectPlayerForLineup}
+          positionLeaderBadges={positionLeaderBadges}
         />
       </main>
     </div>

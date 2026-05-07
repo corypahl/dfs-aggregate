@@ -17,8 +17,10 @@ from dfs_merge.utils import ensure_directory, utc_now_iso, write_json, write_tex
 POSITION_SORT_ORDERS = {
     "epl": {"GK": 0, "D": 1, "M": 2, "F": 3},
     "nba": {"PG": 0, "SG": 1, "SF": 2, "PF": 3, "C": 4},
+    "wnba": {"G": 0, "F": 1},
     "nfl": {"QB": 0, "RB": 1, "WR": 2, "TE": 3, "K": 4, "D/ST": 5, "DST": 5},
     "mlb": {"P": 0, "C": 1, "1B": 2, "2B": 3, "3B": 4, "SS": 5, "OF": 6},
+    "pga": {"G": 0},
 }
 GENERIC_POSITION_BUCKETS = {"UTIL", "FLEX", "SUPERFLEX", "SUPER FLEX"}
 
