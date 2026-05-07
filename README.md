@@ -6,7 +6,7 @@ This project collects public DFS data from FanDuel Research and RotoWire, then a
 - position and salary filters
 - percentile-based `Avg Proj`, `Avg Value`, and `Grade`
 - player highlight badges
-- sport support for `NFL`, `NBA`, `WNBA`, `NHL`, `MLB`, `PGA`, `MMA`, `NASCAR`, `CFB`, `CBB`, `Tennis`, `Cricket`, and `EPL`
+- sport support for `NFL`, `NBA`, `WNBA`, `NHL`, `MLB`, `PGA`, `MMA`, `NASCAR`, `CFB`, `CBB`, `Cricket`, and `EPL`
 - a React frontend that renders the aggregate board
 
 The app has two deployment modes:
@@ -24,7 +24,7 @@ The collector reads the public FanDuel Research pages and uses the public GraphQ
 - MLB: `https://www.fanduel.com/research/mlb/fantasy/dfs-projections`
 - NFL: `https://www.fanduel.com/research/nfl/fantasy/fantasy-football-projections`
 
-EPL, WNBA, NHL, PGA, MMA, NASCAR, CFB, CBB, Tennis, and Cricket currently have no public FanDuel Research projection source configured in this app, so they run as RotoWire-only.
+EPL, WNBA, NHL, PGA, MMA, NASCAR, CFB, CBB, and Cricket currently have no public FanDuel Research projection source configured in this app, so they run as RotoWire-only.
 
 If that request path changes, the code still keeps a Selenium fallback available.
 
@@ -47,7 +47,6 @@ The RotoWire-only sports use these optimizer slugs:
 - `https://www.rotowire.com/daily/racing/optimizer.php?site=FanDuel`
 - `https://www.rotowire.com/daily/cfb/optimizer.php?site=FanDuel`
 - `https://www.rotowire.com/daily/ncaab/optimizer.php?site=FanDuel`
-- `https://www.rotowire.com/daily/tennis/optimizer.php?site=FanDuel`
 - `https://www.rotowire.com/daily/cricket/optimizer.php?site=FanDuel`
 
 ## Install
@@ -132,7 +131,6 @@ This writes:
 - `site/nascar/index.html`
 - `site/cfb/index.html`
 - `site/cbb/index.html`
-- `site/tennis/index.html`
 - `site/cricket/index.html`
 - `site/epl/index.html`
 

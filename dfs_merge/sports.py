@@ -183,14 +183,6 @@ SPORT_CONFIGS: dict[str, SportConfig] = {
             ),
         },
     ),
-    "tennis": SportConfig(
-        key="tennis",
-        label="Tennis",
-        fanduel_page_url=None,
-        rotowire_slug="tennis",
-        source_labels=("RotoWire",),
-        lineup_templates={},
-    ),
     "cricket": SportConfig(
         key="cricket",
         label="Cricket",
@@ -201,7 +193,7 @@ SPORT_CONFIGS: dict[str, SportConfig] = {
     ),
 }
 
-SPORT_ORDER = ["nfl", "nba", "wnba", "nhl", "mlb", "pga", "mma", "nascar", "cfb", "cbb", "tennis", "cricket", "epl"]
+SPORT_ORDER = ["nfl", "nba", "wnba", "nhl", "mlb", "pga", "mma", "nascar", "cfb", "cbb", "cricket", "epl"]
 
 
 def format_sources(config: SportConfig) -> str:
