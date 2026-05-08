@@ -189,6 +189,8 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
       padding: 0 24px 48px;
     }}
     .panel {{
+      display: inline-block;
+      max-width: 100%;
       background: rgba(255, 255, 255, 0.96);
       border: 1px solid var(--line);
       border-radius: 22px;
@@ -201,8 +203,8 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
       background: #ffffff;
     }}
     .sport-table {{
-      width: 100%;
-      min-width: 860px;
+      width: auto;
+      min-width: 0;
       border-collapse: collapse;
     }}
     .sport-table th,
@@ -230,6 +232,7 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
       display: inline-flex;
       align-items: center;
       gap: 10px;
+      min-width: 160px;
       color: var(--header);
       font-weight: 800;
       text-decoration: none;
@@ -245,11 +248,13 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
       line-height: 1;
     }}
     .sport-table .numeric-cell {{
+      width: 90px;
       text-align: right;
       font-variant-numeric: tabular-nums;
       font-weight: 700;
     }}
     .sport-table .status-cell {{
+      width: 130px;
       text-align: center;
     }}
     .source-check {{
