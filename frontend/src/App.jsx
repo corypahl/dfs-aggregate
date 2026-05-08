@@ -23,7 +23,7 @@ export default function App({ bootstrap }) {
   const [selectedSlateKey] = useState(getInitialSlateKey(bootstrap.initialData));
   const [selectedPositions, setSelectedPositions] = useState([]);
   const [maxSalary, setMaxSalary] = useState("");
-  const [sortKey, setSortKey] = useState("salary");
+  const [sortKey, setSortKey] = useState("grade");
   const [sortDir, setSortDir] = useState("desc");
   const [lineup, setLineup] = useState([]);
   const [taggedOnly, setTaggedOnly] = useState(false);
@@ -36,6 +36,14 @@ export default function App({ bootstrap }) {
   }, [data, selectedSlateKey]);
 
   const metricStats = useMemo(() => buildMetricStats(selectedSlate?.records || []), [selectedSlate]);
+  const visibleColumns = useMemo(() => {
+    const hasFanDuelData = (selectedSlate?.records || []).some(
+      (record) =>
+        (record.fd_projection !== null && record.fd_projection !== undefined) ||
+        (record.fd_value !== null && record.fd_value !== undefined),
+    );
+    return hasFanDuelData ? COLUMN_DEFS : COLUMN_DEFS.filter((column) => !column.fanduelOnly);
+  }, [selectedSlate]);
   const selectedPlayerNames = useMemo(
     () => lineup.map((lineupSlot) => lineupSlot.player?.name).filter(Boolean),
     [lineup],
@@ -194,7 +202,7 @@ export default function App({ bootstrap }) {
         />
 
         <AggregateTable
-          columns={COLUMN_DEFS}
+          columns={visibleColumns}
           records={filteredRecords}
           metricStats={metricStats}
           sortKey={sortKey}

@@ -54,6 +54,10 @@ function MetricCell({ value, column, stats }) {
   );
 }
 
+function isEmptySortValue(value) {
+  return value === null || value === undefined || value === "";
+}
+
 export default function AggregateTable({
   columns,
   records,
@@ -68,7 +72,18 @@ export default function AggregateTable({
 }) {
   const sortColumn = columns.find((column) => column.key === sortKey) || columns[0];
   const sortedRecords = [...records].sort((left, right) => {
-    const comparison = compareValues(left[sortKey], right[sortKey], sortColumn.type);
+    const leftValue = left[sortColumn.key];
+    const rightValue = right[sortColumn.key];
+    const leftEmpty = isEmptySortValue(leftValue);
+    const rightEmpty = isEmptySortValue(rightValue);
+    if (leftEmpty || rightEmpty) {
+      if (leftEmpty && rightEmpty) {
+        return 0;
+      }
+      return leftEmpty ? 1 : -1;
+    }
+
+    const comparison = compareValues(leftValue, rightValue, sortColumn.type);
     return sortDir === "asc" ? comparison : -comparison;
   });
 

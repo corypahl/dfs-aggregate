@@ -143,7 +143,7 @@ export default function LineupBuilder({ slate, lineup, setLineup }) {
               <strong>{lineupStats.openSlots}</strong>
             </div>
             <div className="builder-stat">
-              <span className="builder-stat-label">Blended Projection</span>
+              <span className="builder-stat-label">Total Projection</span>
               <strong>{formatNumber(lineupStats.totalProjection)}</strong>
             </div>
           </div>
