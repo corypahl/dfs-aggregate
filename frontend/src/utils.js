@@ -1,6 +1,7 @@
 export const COLUMN_DEFS = [
   { key: "name", label: "Name", type: "text" },
   { key: "team", label: "Team", type: "text" },
+  { key: "opponent", label: "Opponent", type: "text" },
   { key: "rw_position", label: "RW Position", type: "text" },
   { key: "salary", label: "Salary", type: "number", currency: true },
   { key: "game_spread", label: "Spread", type: "number", signed: true, optional: true },
