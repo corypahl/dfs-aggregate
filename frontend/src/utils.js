@@ -1,7 +1,13 @@
 export const COLUMN_DEFS = [
   { key: "name", label: "Name", type: "text" },
+  { key: "team", label: "Team", type: "text" },
   { key: "rw_position", label: "RW Position", type: "text" },
   { key: "salary", label: "Salary", type: "number", currency: true },
+  { key: "game_spread", label: "Spread", type: "number", signed: true, optional: true },
+  { key: "game_total", label: "Total", type: "number", precision: 1, optional: true },
+  { key: "implied_team_total", label: "Implied", type: "number", precision: 1, optional: true },
+  { key: "moneyline", label: "ML", type: "number", odds: true, optional: true },
+  { key: "anytime_goal_odds", label: "Goal Odds", type: "number", odds: true, optional: true },
   { key: "fd_projection", label: "FD Proj", type: "number", bar: true, fanduelOnly: true },
   { key: "fd_value", label: "FD Value", type: "number", bar: true, fanduelOnly: true },
   { key: "rw_projection", label: "RW Proj", type: "number", bar: true },
@@ -30,7 +36,16 @@ export function formatNumber(value, options = {}) {
   if (options.percent) {
     return `${numericValue.toFixed(1)}%`;
   }
-  return numericValue.toFixed(2);
+  if (options.odds) {
+    const rounded = Math.round(numericValue);
+    return rounded > 0 ? `+${rounded}` : String(rounded);
+  }
+  if (options.signed) {
+    const precision = options.precision ?? 1;
+    const display = numericValue.toFixed(precision);
+    return numericValue > 0 ? `+${display}` : display;
+  }
+  return numericValue.toFixed(options.precision ?? 2);
 }
 
 export function parseMaxSalary(value) {

@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import Any, Iterable
 
 from dfs_merge.models import AggregatedProjection, PlayerProjection
-from dfs_merge.utils import clean_name
+from dfs_merge.utils import clean_name, parse_float
 
 
 _NON_ALNUM_PATTERN = re.compile(r"[^a-z0-9]+")
@@ -135,6 +135,15 @@ def aggregate_player_projections(
             rw_position=rotowire_record.position if rotowire_record else None,
             team=_preferred_team(fanduel_record, rotowire_record),
             opponent=_preferred_opponent(fanduel_record, rotowire_record),
+            game_spread=_preferred_raw_number("odds", "spread", fanduel_record, rotowire_record),
+            game_total=_preferred_raw_number("odds", "overUnder", fanduel_record, rotowire_record),
+            implied_team_total=_preferred_raw_number("odds", "impliedPts", fanduel_record, rotowire_record),
+            moneyline=_preferred_raw_number("odds", "moneyline", fanduel_record, rotowire_record),
+            anytime_goal_odds=_preferred_nested_raw_number(
+                ("stats", "playerProps", "anytimeGoalscorerMoneyline"),
+                fanduel_record,
+                rotowire_record,
+            ),
             salary=_preferred_salary(fanduel_record, rotowire_record),
             fd_projection=fanduel_record.projection if fanduel_record else None,
             fd_value=fanduel_record.value if fanduel_record else None,
@@ -485,6 +494,50 @@ def _preferred_opponent(
             return opponent
     if rotowire_record:
         return _opponent_abbreviation(rotowire_record)
+    return None
+
+
+def _preferred_raw_number(
+    parent_key: str,
+    child_key: str,
+    fanduel_record: PlayerProjection | None,
+    rotowire_record: PlayerProjection | None,
+) -> float | None:
+    return _first_present_number(
+        (
+            _nested_raw_value(rotowire_record, (parent_key, child_key)),
+            _nested_raw_value(fanduel_record, (parent_key, child_key)),
+        )
+    )
+
+
+def _preferred_nested_raw_number(
+    path: tuple[str, ...],
+    fanduel_record: PlayerProjection | None,
+    rotowire_record: PlayerProjection | None,
+) -> float | None:
+    return _first_present_number(
+        (
+            _nested_raw_value(rotowire_record, path),
+            _nested_raw_value(fanduel_record, path),
+        )
+    )
+
+
+def _nested_raw_value(record: PlayerProjection | None, path: tuple[str, ...]) -> Any:
+    current: Any = record.raw if record else None
+    for key in path:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
+
+
+def _first_present_number(values: tuple[Any, ...]) -> float | None:
+    for value in values:
+        parsed = parse_float(value)
+        if parsed is not None:
+            return parsed
     return None
 
 

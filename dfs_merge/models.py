@@ -25,6 +25,11 @@ class AggregatedProjection:
     rw_position: str | None
     team: str | None
     opponent: str | None
+    game_spread: float | None
+    game_total: float | None
+    implied_team_total: float | None
+    moneyline: float | None
+    anytime_goal_odds: float | None
     salary: float | None
     fd_projection: float | None
     fd_value: float | None

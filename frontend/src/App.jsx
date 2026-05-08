@@ -49,7 +49,15 @@ export default function App({ bootstrap }) {
         (record.fd_projection !== null && record.fd_projection !== undefined) ||
         (record.fd_value !== null && record.fd_value !== undefined),
     );
-    return hasFanDuelData ? COLUMN_DEFS : COLUMN_DEFS.filter((column) => !column.fanduelOnly);
+    return COLUMN_DEFS.filter((column) => {
+      if (column.fanduelOnly && !hasFanDuelData) {
+        return false;
+      }
+      if (column.optional) {
+        return (selectedSlate?.records || []).some((record) => record[column.key] !== null && record[column.key] !== undefined);
+      }
+      return true;
+    });
   }, [selectedSlate]);
   const selectedPlayerNames = useMemo(
     () => lineup.map((lineupSlot) => lineupSlot.player?.name).filter(Boolean),
