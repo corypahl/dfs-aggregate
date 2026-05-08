@@ -41,7 +41,8 @@ function MetricCell({ value, column, stats }) {
     return <span className="metric-empty" />;
   }
 
-  const ratio = metricRatio(value, stats);
+  const rawRatio = metricRatio(value, stats);
+  const ratio = column.lowerIsBetter ? 1 - rawRatio : rawRatio;
   const background = metricBackgroundColor(ratio);
   const display = formatNumber(value, column);
 
