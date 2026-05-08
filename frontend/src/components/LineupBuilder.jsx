@@ -1,4 +1,9 @@
 import React, { useMemo } from "react";
+import {
+  buildBestAvailableBySlot,
+  buildSwapSuggestions,
+  optimizeLineup,
+} from "../lineupIntelligence.js";
 import { computeBlendedProjection, formatNumber, formatSalary } from "../utils.js";
 
 export function buildEmptyLineup(lineupTemplate) {
@@ -12,7 +17,13 @@ export function buildEmptyLineup(lineupTemplate) {
   }));
 }
 
-export default function LineupBuilder({ slate, lineup, setLineup }) {
+function formatDelta(value, options = {}) {
+  const numeric = Number(value || 0);
+  const formatted = options.salary ? formatSalary(Math.abs(numeric)) : formatNumber(Math.abs(numeric));
+  return `${numeric >= 0 ? "+" : "-"}${formatted}`;
+}
+
+export default function LineupBuilder({ slate, lineup, setLineup, records = [], sport }) {
   const lineupStats = useMemo(() => {
     const totalSalary = lineup.reduce((sum, lineupSlot) => sum + Number(lineupSlot.player?.salary || 0), 0);
     const totalProjection = lineup.reduce(
@@ -32,6 +43,28 @@ export default function LineupBuilder({ slate, lineup, setLineup }) {
       avgPerSlot,
     };
   }, [lineup, slate?.salary_cap]);
+
+  const bestAvailable = useMemo(
+    () => buildBestAvailableBySlot({ records, lineup, slate, sport }).slice(0, 5),
+    [lineup, records, slate, sport],
+  );
+  const swapSuggestions = useMemo(
+    () => buildSwapSuggestions({ records, lineup, slate, sport, limit: 3 }),
+    [lineup, records, slate, sport],
+  );
+
+  const applyOptimizedLineup = (preserveCurrent) => {
+    const result = optimizeLineup({
+      records,
+      slate,
+      lineup,
+      sport,
+      preserveCurrent,
+    });
+    if (result?.lineup) {
+      setLineup(result.lineup);
+    }
+  };
 
   const removePlayerFromLineup = (index) => {
     setLineup((current) =>
@@ -146,6 +179,88 @@ export default function LineupBuilder({ slate, lineup, setLineup }) {
               <span className="builder-stat-label">Total Projection</span>
               <strong>{formatNumber(lineupStats.totalProjection)}</strong>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="builder-card assistant-card">
+        <div className="builder-card-header">
+          <h3>Lineup Assistant</h3>
+          <div className="assistant-actions">
+            <button type="button" className="assistant-button" onClick={() => applyOptimizedLineup(true)}>
+              Fill Open Slots
+            </button>
+            <button type="button" className="assistant-button is-primary" onClick={() => applyOptimizedLineup(false)}>
+              Build Best Cash
+            </button>
+          </div>
+        </div>
+        <div className="assistant-grid">
+          <div className="assistant-panel">
+            <span className="assistant-label">Best Available</span>
+            {bestAvailable.length ? (
+              <div className="assistant-list">
+                {bestAvailable.map((item) => (
+                  <button
+                    key={`${item.slot}-${item.player.name}`}
+                    type="button"
+                    className="assistant-row assistant-row-button"
+                    onClick={() => {
+                      setLineup((current) => {
+                        const next = [...current];
+                        const targetIndex = next.findIndex((lineupSlot) => !lineupSlot.player && lineupSlot.slot === item.slot);
+                        if (targetIndex < 0 || next.some((lineupSlot) => lineupSlot.player?.name === item.player.name)) {
+                          return current;
+                        }
+                        next[targetIndex] = { ...next[targetIndex], player: item.player };
+                        return next;
+                      });
+                    }}
+                  >
+                    <span className="assistant-slot">{item.slot}</span>
+                    <span className="assistant-player">{item.player.name}</span>
+                    <span className="assistant-meta">
+                      {formatNumber(item.cashScore)} score
+                      {item.projection !== null && item.projection !== undefined ? ` / ${formatNumber(item.projection)} proj` : ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="assistant-empty">No open-slot recommendations match the current filters.</p>
+            )}
+          </div>
+
+          <div className="assistant-panel">
+            <span className="assistant-label">Swap Ideas</span>
+            {swapSuggestions.length ? (
+              <div className="assistant-list">
+                {swapSuggestions.map((swap) => (
+                  <button
+                    key={`${swap.slot}-${swap.out.name}-${swap.in.name}`}
+                    type="button"
+                    className="assistant-row assistant-row-button"
+                    onClick={() => {
+                      setLineup((current) =>
+                        current.map((lineupSlot) =>
+                          lineupSlot.player?.name === swap.out.name ? { ...lineupSlot, player: swap.in } : lineupSlot,
+                        ),
+                      );
+                    }}
+                  >
+                    <span className="assistant-slot">{swap.slot}</span>
+                    <span className="assistant-player">
+                      {swap.out.name} to {swap.in.name}
+                    </span>
+                    <span className="assistant-meta">
+                      {formatDelta(swap.scoreDelta)} score / {formatDelta(swap.projectionDelta)} proj
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="assistant-empty">No positive swaps found for the current lineup.</p>
+            )}
           </div>
         </div>
       </div>

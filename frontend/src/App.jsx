@@ -210,6 +210,8 @@ export default function App({ bootstrap }) {
           slate={selectedSlate}
           lineup={lineup}
           setLineup={setLineup}
+          records={filteredRecords}
+          sport={data?.sport}
         />
 
         <FilterPanel
