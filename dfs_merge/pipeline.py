@@ -244,6 +244,8 @@ def write_aggregate_csv(records: list[AggregatedProjection], path: Path) -> None
             fieldnames=[
                 "name",
                 "rw_position",
+                "team",
+                "opponent",
                 "salary",
                 "fd_projection",
                 "fd_value",
@@ -260,6 +262,8 @@ def write_aggregate_csv(records: list[AggregatedProjection], path: Path) -> None
                 {
                     "name": record.name,
                     "rw_position": record.rw_position,
+                    "team": record.team,
+                    "opponent": record.opponent,
                     "salary": record.salary,
                     "fd_projection": record.fd_projection,
                     "fd_value": record.fd_value,
@@ -375,6 +379,7 @@ def serialize_aggregated_record(record: AggregatedProjection) -> dict[str, Any]:
         "fd_position": record.fd_position,
         "rw_position": record.rw_position,
         "team": record.team,
+        "opponent": record.opponent,
         "salary": record.salary,
         "fd_projection": record.fd_projection,
         "fd_value": record.fd_value,

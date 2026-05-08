@@ -506,6 +506,18 @@ h1 {
   font-size: 0.9rem;
 }
 
+.name-badge-strategy {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #075985;
+}
+
+.name-badge-warning {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
 .metric-cell {
   position: relative;
 }

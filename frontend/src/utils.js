@@ -173,7 +173,168 @@ export function buildPositionLeaderBadges(records, lineupTemplate) {
   return badgesByName;
 }
 
-export function buildPlayerBadges(record, positionBadges = []) {
+export function buildStrategyBadgesByName(records = [], selectedPlayers = [], sport) {
+  const activePlayers = selectedPlayers.filter(Boolean);
+  return records.reduce((badgesByName, record) => {
+    const badges = buildStrategyBadges(record, activePlayers, sport);
+    if (badges.length) {
+      badgesByName[record.name] = badges;
+    }
+    return badgesByName;
+  }, {});
+}
+
+function buildStrategyBadges(record, selectedPlayers, sport) {
+  if (!selectedPlayers.length || selectedPlayers.some((selectedPlayer) => selectedPlayer.name === record.name)) {
+    return [];
+  }
+
+  const badges = [];
+  const normalizedSport = String(sport || "").toLowerCase();
+  selectedPlayers.forEach((selectedPlayer) => {
+    if (normalizedSport === "nfl" || normalizedSport === "cfb") {
+      addFootballStrategyBadges(badges, record, selectedPlayer);
+    } else if (normalizedSport === "mlb") {
+      addMlbStrategyBadges(badges, record, selectedPlayer);
+    } else if (["nba", "wnba", "cbb"].includes(normalizedSport)) {
+      addBasketballStrategyBadges(badges, record, selectedPlayers);
+    } else if (normalizedSport === "epl") {
+      addEplStrategyBadges(badges, record, selectedPlayer);
+    }
+  });
+  return badges;
+}
+
+function addFootballStrategyBadges(badges, record, selectedPlayer) {
+  if (hasAnyPosition(selectedPlayer, ["QB"]) && sameTeam(record, selectedPlayer) && hasAnyPosition(record, ["WR", "TE"])) {
+    addStrategyBadge(badges, "nfl-qb-pair", "QB Pair", `Same-team pass catcher with ${selectedPlayer.name}`, "name-badge-strategy");
+  }
+  if (hasAnyPosition(selectedPlayer, ["QB"]) && areOpponents(record, selectedPlayer) && isDefense(record)) {
+    addStrategyBadge(badges, "nfl-qb-defense-warning", "Avoid", `Opposing defense against selected QB ${selectedPlayer.name}`, "name-badge-warning");
+  }
+  if (isDefense(selectedPlayer) && areOpponents(record, selectedPlayer) && hasAnyPosition(record, ["QB", "RB", "WR", "TE"])) {
+    addStrategyBadge(badges, "nfl-vs-defense", "Vs DEF", `Offensive player against selected defense ${selectedPlayer.name}`, "name-badge-warning");
+  }
+  if (hasAnyPosition(selectedPlayer, ["RB"]) && sameTeam(record, selectedPlayer) && isDefense(record)) {
+    addStrategyBadge(badges, "nfl-rb-defense", "RB+D", `Same-team defense with selected RB ${selectedPlayer.name}`, "name-badge-strategy");
+  }
+  if (isDefense(selectedPlayer) && sameTeam(record, selectedPlayer) && hasAnyPosition(record, ["RB"])) {
+    addStrategyBadge(badges, "nfl-defense-rb", "RB+D", `Same-team RB with selected defense ${selectedPlayer.name}`, "name-badge-strategy");
+  }
+}
+
+function addMlbStrategyBadges(badges, record, selectedPlayer) {
+  if (hasAnyPosition(selectedPlayer, ["P"]) && areOpponents(record, selectedPlayer) && !hasAnyPosition(record, ["P"])) {
+    addStrategyBadge(badges, "mlb-vs-pitcher", "Vs P", `Hitter facing selected pitcher ${selectedPlayer.name}`, "name-badge-warning");
+  }
+  if (!hasAnyPosition(selectedPlayer, ["P"]) && areOpponents(record, selectedPlayer) && hasAnyPosition(record, ["P"])) {
+    addStrategyBadge(badges, "mlb-vs-bats", "Vs Bats", `Pitcher facing selected hitter ${selectedPlayer.name}`, "name-badge-warning");
+  }
+  if (!hasAnyPosition(selectedPlayer, ["P"]) && !hasAnyPosition(record, ["P"]) && sameTeam(record, selectedPlayer)) {
+    addStrategyBadge(badges, "mlb-team-bat", "Team Bat", `Same-team hitter with ${selectedPlayer.name}`, "name-badge-strategy");
+  }
+}
+
+function addBasketballStrategyBadges(badges, record, selectedPlayers) {
+  const team = normalizeTeam(record.team);
+  if (!team) {
+    return;
+  }
+  const selectedSameTeamCount = selectedPlayers.filter((selectedPlayer) => normalizeTeam(selectedPlayer.team) === team).length;
+  if (selectedSameTeamCount >= 2) {
+    addStrategyBadge(badges, "basketball-team-x3", "Team x3", "Would be the third player from this team", "name-badge-warning");
+  }
+}
+
+function addEplStrategyBadges(badges, record, selectedPlayer) {
+  if (hasAnyPosition(selectedPlayer, ["GK"]) && sameTeam(record, selectedPlayer) && hasAnyPosition(record, ["D"])) {
+    addStrategyBadge(badges, "epl-clean-sheet-pair", "CS Pair", `Clean-sheet pair with selected GK ${selectedPlayer.name}`, "name-badge-strategy");
+  }
+  if (hasAnyPosition(selectedPlayer, ["D"]) && sameTeam(record, selectedPlayer) && hasAnyPosition(record, ["GK"])) {
+    addStrategyBadge(badges, "epl-defender-gk-pair", "CS Pair", `Clean-sheet pair with selected defender ${selectedPlayer.name}`, "name-badge-strategy");
+  }
+  if ((hasAnyPosition(selectedPlayer, ["GK"]) || hasAnyPosition(selectedPlayer, ["D"])) && areOpponents(record, selectedPlayer) && hasAnyPosition(record, ["F", "M"])) {
+    addStrategyBadge(badges, "epl-vs-clean-sheet", "Vs CS", `Attacker against selected clean-sheet player ${selectedPlayer.name}`, "name-badge-warning");
+  }
+  if (hasAnyPosition(selectedPlayer, ["F", "M"]) && areOpponents(record, selectedPlayer) && (hasAnyPosition(record, ["GK"]) || hasAnyPosition(record, ["D"]))) {
+    addStrategyBadge(badges, "epl-vs-attack", "Vs Att", `Defensive player against selected attacker ${selectedPlayer.name}`, "name-badge-warning");
+  }
+}
+
+function addStrategyBadge(badges, key, text, label, className) {
+  if (badges.some((badge) => badge.key === key)) {
+    return;
+  }
+  badges.push({ key, text, label, className });
+}
+
+function sameTeam(left, right) {
+  const leftTeam = normalizeTeam(left.team);
+  const rightTeam = normalizeTeam(right.team);
+  return Boolean(leftTeam && rightTeam && leftTeam === rightTeam);
+}
+
+function areOpponents(left, right) {
+  const leftTeam = normalizeTeam(left.team);
+  const rightTeam = normalizeTeam(right.team);
+  const leftOpponent = normalizeTeam(left.opponent);
+  const rightOpponent = normalizeTeam(right.opponent);
+  return Boolean(
+    (leftTeam && rightOpponent && leftTeam === rightOpponent) ||
+      (rightTeam && leftOpponent && rightTeam === leftOpponent),
+  );
+}
+
+function normalizeTeam(value) {
+  return value ? String(value).trim().toUpperCase() : "";
+}
+
+function isDefense(record) {
+  return hasAnyPosition(record, ["D", "D/ST", "DST", "DEF"]);
+}
+
+function hasAnyPosition(record, positions) {
+  const recordPositions = getRecordPositions(record);
+  return positions.some((position) => recordPositions.has(position) || positionAliases(position).some((alias) => recordPositions.has(alias)));
+}
+
+function getRecordPositions(record) {
+  const values = [
+    ...(record.builder_position_values || []),
+    ...(record.position_filter_values || []),
+    ...splitPositionText(record.builder_position),
+    ...splitPositionText(record.fd_position),
+    ...splitPositionText(record.rw_position),
+  ];
+  return new Set(values.map((position) => String(position).trim().toUpperCase()).filter(Boolean));
+}
+
+function splitPositionText(value) {
+  if (!value) {
+    return [];
+  }
+  return String(value)
+    .replace("D/ST", "DST_PLACEHOLDER")
+    .split("/")
+    .map((position) => position.trim().toUpperCase().replace("DST_PLACEHOLDER", "D/ST"))
+    .filter(Boolean);
+}
+
+function positionAliases(position) {
+  const normalized = String(position).trim().toUpperCase();
+  const aliases = {
+    D: ["D", "DEF", "D/ST", "DST"],
+    "D/ST": ["D", "DEF", "D/ST", "DST"],
+    DST: ["D", "DEF", "D/ST", "DST"],
+    DEF: ["D", "DEF", "D/ST", "DST"],
+    F: ["F", "FWD", "FW"],
+    M: ["M", "MID"],
+    GK: ["GK"],
+  };
+  return aliases[normalized] || [normalized];
+}
+
+export function buildPlayerBadges(record, positionBadges = [], strategyBadges = []) {
   const projectionHot = record.avg_projection !== null && record.avg_projection >= 90;
   const valueHot = record.avg_value !== null && record.avg_value >= 90;
   const sourceBadges = [];
@@ -186,7 +347,7 @@ export function buildPlayerBadges(record, positionBadges = []) {
     sourceBadges.push({ key: "projection", label: "Elite projection", text: "\u{1F4AA}", className: "name-badge-projection" });
   }
 
-  return [...sourceBadges, ...positionBadges];
+  return [...sourceBadges, ...positionBadges, ...strategyBadges];
 }
 
 export function computeBlendedProjection(record) {

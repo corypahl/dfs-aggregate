@@ -2,7 +2,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import AggregateTable from "./components/AggregateTable.jsx";
 import FilterPanel from "./components/FilterPanel.jsx";
 import LineupBuilder, { buildEmptyLineup } from "./components/LineupBuilder.jsx";
-import { buildMetricStats, buildPlayerBadges, buildPositionLeaderBadges, COLUMN_DEFS, parseMaxSalary } from "./utils.js";
+import {
+  buildMetricStats,
+  buildPlayerBadges,
+  buildPositionLeaderBadges,
+  buildStrategyBadgesByName,
+  COLUMN_DEFS,
+  parseMaxSalary,
+} from "./utils.js";
 
 function getInitialSlateKey(initialData) {
   const fallback = initialData?.selected_slate_key || initialData?.slates?.[0]?.key || "no-slate";
@@ -48,6 +55,10 @@ export default function App({ bootstrap }) {
     () => lineup.map((lineupSlot) => lineupSlot.player?.name).filter(Boolean),
     [lineup],
   );
+  const selectedPlayers = useMemo(
+    () => lineup.map((lineupSlot) => lineupSlot.player).filter(Boolean),
+    [lineup],
+  );
 
   useEffect(() => {
     setLineup(buildEmptyLineup(selectedSlate?.lineup_template));
@@ -73,12 +84,23 @@ export default function App({ bootstrap }) {
     () => buildPositionLeaderBadges(baseFilteredRecords, selectedSlate?.lineup_template),
     [baseFilteredRecords, selectedSlate?.lineup_template],
   );
+  const strategyBadgesByName = useMemo(
+    () => buildStrategyBadgesByName(baseFilteredRecords, selectedPlayers, data?.sport),
+    [baseFilteredRecords, data?.sport, selectedPlayers],
+  );
   const filteredRecords = useMemo(
     () =>
       taggedOnly
-        ? baseFilteredRecords.filter((record) => buildPlayerBadges(record, positionLeaderBadges[record.name] || []).length > 0)
+        ? baseFilteredRecords.filter(
+            (record) =>
+              buildPlayerBadges(
+                record,
+                positionLeaderBadges[record.name] || [],
+                strategyBadgesByName[record.name] || [],
+              ).length > 0,
+          )
         : baseFilteredRecords,
-    [baseFilteredRecords, positionLeaderBadges, taggedOnly],
+    [baseFilteredRecords, positionLeaderBadges, strategyBadgesByName, taggedOnly],
   );
 
   const handleSortChange = (nextSortKey, type) => {
@@ -212,6 +234,7 @@ export default function App({ bootstrap }) {
           selectedPlayerNames={selectedPlayerNames}
           canSelectPlayer={canSelectPlayerForLineup}
           positionLeaderBadges={positionLeaderBadges}
+          strategyBadgesByName={strategyBadgesByName}
         />
       </main>
     </div>

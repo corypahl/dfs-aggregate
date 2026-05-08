@@ -24,6 +24,7 @@ class AggregatedProjection:
     fd_position: str | None
     rw_position: str | None
     team: str | None
+    opponent: str | None
     salary: float | None
     fd_projection: float | None
     fd_value: float | None

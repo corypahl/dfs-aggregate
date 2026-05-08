@@ -134,6 +134,7 @@ def aggregate_player_projections(
             fd_position=fanduel_record.position if fanduel_record else None,
             rw_position=rotowire_record.position if rotowire_record else None,
             team=_preferred_team(fanduel_record, rotowire_record),
+            opponent=_preferred_opponent(fanduel_record, rotowire_record),
             salary=_preferred_salary(fanduel_record, rotowire_record),
             fd_projection=fanduel_record.projection if fanduel_record else None,
             fd_value=fanduel_record.value if fanduel_record else None,
@@ -399,10 +400,36 @@ def _team_abbreviation(record: PlayerProjection) -> str | None:
     else:
         team = (record.raw.get("team") or {}).get("abbr")
 
+    return _normalize_team_abbreviation(team)
+
+
+def _opponent_abbreviation(record: PlayerProjection) -> str | None:
+    if record.source == "rotowire":
+        opponent = (record.raw.get("opponent") or {}).get("team")
+        if isinstance(opponent, dict):
+            opponent = opponent.get("abbr")
+        return _normalize_team_abbreviation(opponent)
+
+    team = _team_abbreviation(record)
+    game_info = record.raw.get("gameInfo") or {}
+    home_team = _normalize_team_abbreviation((game_info.get("homeTeam") or {}).get("abbreviation"))
+    away_team = _normalize_team_abbreviation((game_info.get("awayTeam") or {}).get("abbreviation"))
     if not team:
         return None
+    if team == home_team:
+        return away_team
+    if team == away_team:
+        return home_team
+    return None
 
-    normalized = str(team).strip().upper()
+
+def _normalize_team_abbreviation(value: object) -> str | None:
+    if not value:
+        return None
+
+    normalized = str(value).strip().upper()
+    if not normalized:
+        return None
     return _TEAM_ALIASES.get(normalized, normalized)
 
 
@@ -445,6 +472,19 @@ def _preferred_team(
             return team
     if rotowire_record:
         return _team_abbreviation(rotowire_record)
+    return None
+
+
+def _preferred_opponent(
+    fanduel_record: PlayerProjection | None,
+    rotowire_record: PlayerProjection | None,
+) -> str | None:
+    if fanduel_record:
+        opponent = _opponent_abbreviation(fanduel_record)
+        if opponent:
+            return opponent
+    if rotowire_record:
+        return _opponent_abbreviation(rotowire_record)
     return None
 
 

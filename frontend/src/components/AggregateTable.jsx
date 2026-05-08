@@ -1,8 +1,8 @@
 import React from "react";
 import { buildPlayerBadges, compareValues, formatNumber, metricBackgroundColor, metricRatio } from "../utils.js";
 
-function NameCell({ record, onPlayerSelect, isDisabled, positionBadges }) {
-  const badges = buildPlayerBadges(record, positionBadges);
+function NameCell({ record, onPlayerSelect, isDisabled, positionBadges, strategyBadges }) {
+  const badges = buildPlayerBadges(record, positionBadges, strategyBadges);
 
   return (
     <div className="name-cell">
@@ -67,6 +67,7 @@ export default function AggregateTable({
   selectedPlayerNames = [],
   canSelectPlayer,
   positionLeaderBadges = {},
+  strategyBadgesByName = {},
 }) {
   const sortColumn = columns.find((column) => column.key === sortKey) || columns[0];
   const sortedRecords = [...records].sort((left, right) => {
@@ -122,6 +123,7 @@ export default function AggregateTable({
                           onPlayerSelect={onPlayerSelect}
                           isDisabled={disabled}
                           positionBadges={positionLeaderBadges[record.name] || []}
+                          strategyBadges={strategyBadgesByName[record.name] || []}
                         />
                       </td>
                     );
