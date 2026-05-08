@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import html
 import shutil
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dfs_merge.frontend import copy_frontend_assets
 from dfs_merge.pipeline import run_pipeline
@@ -91,7 +93,7 @@ def build_pages_site(
 
 def render_pages_index(summaries: list[dict[str, Any]]) -> str:
     rows = []
-    built_at = summaries[0]["generated_at"] if summaries else ""
+    parsed_at = format_landing_timestamp(summaries[0]["generated_at"]) if summaries else ""
     sorted_summaries = sorted(
         summaries,
         key=lambda summary: (
@@ -104,30 +106,30 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
     for summary in sorted_summaries:
         sport_config = get_sport_config(summary["sport"])
         slate_options = build_slate_options(summary)
+        fanduel_status = build_source_status(summary["fanduel"].get("record_count", 0), "FanDuel")
+        rotowire_status = build_source_status(summary["rotowire"].get("record_count", 0), "RotoWire")
         rows.append(
             """
             <tr>
               <td><a class="sport-link" href="./{sport}/"><span class="sport-emoji" aria-hidden="true">{emoji}</span>{label}</a></td>
               <td class="numeric-cell">{slates}</td>
+              <td class="status-cell">{fanduel_status}</td>
+              <td class="status-cell">{rotowire_status}</td>
               <td>
                 <select class="slate-select" aria-label="Select {label} slate">
                   {slate_options}
                 </select>
               </td>
-              <td class="action-cell"><button class="go-button" type="button" data-base-href="./{sport}/">Go</button></td>
-              <td class="numeric-cell">{players}</td>
-              <td class="numeric-cell">{fanduel}</td>
-              <td class="numeric-cell">{rotowire}</td>
+              <td class="action-cell"><button class="go-button" type="button" data-base-href="./{sport}/">Build</button></td>
             </tr>
             """.format(
                 sport=html.escape(summary["sport"], quote=True),
                 emoji=html.escape(SPORT_EMOJI.get(summary["sport"], "•"), quote=True),
                 label=html.escape(sport_config.label, quote=True),
                 slates=html.escape(str(len(summary["rotowire"].get("available_slates") or [])), quote=True),
+                fanduel_status=fanduel_status,
+                rotowire_status=rotowire_status,
                 slate_options=slate_options,
-                players=html.escape(str(summary["aggregate_record_count"]), quote=True),
-                fanduel=html.escape(str(summary["fanduel"]["record_count"]), quote=True),
-                rotowire=html.escape(str(summary["rotowire"]["record_count"]), quote=True),
             ).strip()
         )
 
@@ -136,7 +138,7 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>DFS Aggregate</title>
+  <title>DFS Lineup Builder</title>
   <style>
     :root {{
       color-scheme: light;
@@ -169,9 +171,9 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
     .built-at {{
       display: inline-flex;
       align-items: center;
-      margin-bottom: 14px;
+      margin-top: 24px;
       color: #a9bfd8;
-      font-size: 0.82rem;
+      font-size: 0.94rem;
       font-weight: 700;
       letter-spacing: 0.04em;
     }}
@@ -200,7 +202,7 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
     }}
     .sport-table {{
       width: 100%;
-      min-width: 980px;
+      min-width: 860px;
       border-collapse: collapse;
     }}
     .sport-table th,
@@ -242,10 +244,30 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
       font-size: 1.05rem;
       line-height: 1;
     }}
-    .numeric-cell {{
+    .sport-table .numeric-cell {{
       text-align: right;
       font-variant-numeric: tabular-nums;
       font-weight: 700;
+    }}
+    .sport-table .status-cell {{
+      text-align: center;
+    }}
+    .source-check {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: #e1f6e4;
+      color: #128000;
+      font-size: 0.92rem;
+      font-weight: 900;
+      line-height: 1;
+    }}
+    .source-missing {{
+      color: #9aa9b9;
+      font-weight: 800;
     }}
     .slate-select {{
       width: min(100%, 260px);
@@ -259,7 +281,7 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
       font-weight: 700;
       padding: 0 34px 0 10px;
     }}
-    .action-cell {{
+    .sport-table .action-cell {{
       width: 1%;
       text-align: right;
     }}
@@ -267,16 +289,16 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
       height: 36px;
       border: 0;
       border-radius: 8px;
-      background: #128000;
+      background: #1d68ff;
       color: #ffffff;
       cursor: pointer;
       font: inherit;
       font-size: 0.82rem;
       font-weight: 800;
-      padding: 0 16px;
+      padding: 0 18px;
     }}
     .go-button:hover {{
-      background: #0d6500;
+      background: #1554d1;
     }}
     code {{
       font-family: Consolas, "SFMono-Regular", monospace;
@@ -299,8 +321,8 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
 <body>
   <section class="hero">
     <div class="hero-inner">
-      <h1>DFS Aggregate</h1>
-      <span class="built-at">Built {html.escape(built_at, quote=True)}</span>
+      <h1>DFS Lineup Builder</h1>
+      <span class="built-at">Last parsed at {html.escape(parsed_at, quote=True)}</span>
     </div>
   </section>
   <main class="content">
@@ -311,11 +333,10 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
             <tr>
               <th>Sport</th>
               <th class="numeric-cell">Slates</th>
+              <th class="status-cell">FanDuel</th>
+              <th class="status-cell">RotoWire</th>
               <th>Slate</th>
               <th class="action-cell"></th>
-              <th class="numeric-cell">Players</th>
-              <th class="numeric-cell">FanDuel</th>
-              <th class="numeric-cell">RotoWire</th>
             </tr>
           </thead>
           <tbody>
@@ -341,6 +362,47 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
 </body>
 </html>
 """
+
+
+def format_landing_timestamp(value: str) -> str:
+    if not value:
+        return ""
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return value
+    eastern = parsed.astimezone(get_eastern_timezone(parsed))
+    hour = eastern.hour % 12 or 12
+    suffix = "AM" if eastern.hour < 12 else "PM"
+    return f"{eastern.month}/{eastern.day}/{eastern.year} {hour}:{eastern.minute:02d}{suffix} ET"
+
+
+def get_eastern_timezone(parsed: datetime) -> ZoneInfo | timezone:
+    try:
+        return ZoneInfo("America/New_York")
+    except ZoneInfoNotFoundError:
+        utc_time = parsed.astimezone(timezone.utc)
+        year = utc_time.year
+        dst_start = datetime(year, 3, nth_weekday_of_month(year, 3, 6, 2), 7, tzinfo=timezone.utc)
+        dst_end = datetime(year, 11, nth_weekday_of_month(year, 11, 6, 1), 6, tzinfo=timezone.utc)
+        offset_hours = -4 if dst_start <= utc_time < dst_end else -5
+        return timezone(timedelta(hours=offset_hours))
+
+
+def nth_weekday_of_month(year: int, month: int, weekday: int, occurrence: int) -> int:
+    first_day = datetime(year, month, 1)
+    days_until_weekday = (weekday - first_day.weekday()) % 7
+    return 1 + days_until_weekday + (occurrence - 1) * 7
+
+
+def build_source_status(record_count: int, source_name: str) -> str:
+    if int(record_count or 0) > 0:
+        return '<span class="source-check" aria-label="{source} players found">&#10003;</span>'.format(
+            source=html.escape(source_name, quote=True)
+        )
+    return '<span class="source-missing" aria-label="No {source} players found">-</span>'.format(
+        source=html.escape(source_name, quote=True)
+    )
 
 
 def build_slate_options(summary: dict[str, Any]) -> str:
