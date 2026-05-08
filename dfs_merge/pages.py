@@ -115,7 +115,7 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
               <td class="numeric-cell">{slates}</td>
               <td class="status-cell">{fanduel_status}</td>
               <td class="status-cell">{rotowire_status}</td>
-              <td>
+              <td class="slate-cell">
                 <select class="slate-select" aria-label="Select {label} slate">
                   {slate_options}
                 </select>
@@ -259,8 +259,8 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
       width: 24px;
       height: 24px;
       border-radius: 999px;
-      background: #e1f6e4;
-      color: #128000;
+      background: #e4edff;
+      color: #1d68ff;
       font-size: 0.92rem;
       font-weight: 900;
       line-height: 1;
@@ -281,9 +281,14 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
       font-weight: 700;
       padding: 0 34px 0 10px;
     }}
+    .sport-table .slate-cell {{
+      width: 280px;
+      padding-right: 8px;
+    }}
     .sport-table .action-cell {{
       width: 1%;
-      text-align: right;
+      padding-left: 0;
+      text-align: left;
     }}
     .go-button {{
       height: 36px;
@@ -335,7 +340,7 @@ def render_pages_index(summaries: list[dict[str, Any]]) -> str:
               <th class="numeric-cell">Slates</th>
               <th class="status-cell">FanDuel</th>
               <th class="status-cell">RotoWire</th>
-              <th>Slate</th>
+              <th class="slate-cell">Slate</th>
               <th class="action-cell"></th>
             </tr>
           </thead>
