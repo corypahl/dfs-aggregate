@@ -1,5 +1,5 @@
 import React from "react";
-import { buildPlayerBadges, compareValues, formatNumber, metricBarColor, metricRatio } from "../utils.js";
+import { buildPlayerBadges, compareValues, formatNumber, metricBackgroundColor, metricRatio } from "../utils.js";
 
 function NameCell({ record, onPlayerSelect, isDisabled, positionBadges }) {
   const badges = buildPlayerBadges(record, positionBadges);
@@ -42,13 +42,11 @@ function MetricCell({ value, column, stats }) {
   }
 
   const ratio = metricRatio(value, stats);
-  const width = `${(ratio * 100).toFixed(1)}%`;
-  const color = metricBarColor(ratio);
+  const background = metricBackgroundColor(ratio);
   const display = formatNumber(value, column);
 
   return (
-    <div className="metric-wrap">
-      <span className="metric-fill" style={{ width, background: color }} />
+    <div className="metric-wrap" style={{ background }}>
       <span className="metric-text">{display}</span>
     </div>
   );

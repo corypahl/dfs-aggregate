@@ -97,9 +97,17 @@ export function metricRatio(value, stats) {
   return Math.max(0, Math.min(1, ratio));
 }
 
-export function metricBarColor(ratio) {
-  const hue = 120 * ratio;
-  return `hsl(${Math.round(hue)} 72% 45%)`;
+export function metricBackgroundColor(ratio) {
+  if (ratio >= 0.95) {
+    return "#dcfce7";
+  }
+  if (ratio >= 0.9) {
+    return "#fef9c3";
+  }
+  if (ratio >= 0.85) {
+    return "#ffedd5";
+  }
+  return "#fee2e2";
 }
 
 function hasNumericValue(record, key) {

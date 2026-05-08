@@ -515,20 +515,11 @@ h1 {
   overflow: hidden;
   border-radius: 999px;
   background: #edf2f8;
+  border: 1px solid rgba(15, 34, 61, 0.08);
   min-height: 1.8rem;
   display: flex;
   align-items: center;
   padding: 4px 10px;
-}
-
-.metric-fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  border-radius: 999px;
-  opacity: 0.28;
-  pointer-events: none;
 }
 
 .metric-text {
