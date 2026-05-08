@@ -343,15 +343,15 @@ h1 {
 
 .aggregate-table {
   width: 100%;
-  min-width: 1180px;
+  min-width: 980px;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 0.92rem;
+  font-size: 0.88rem;
 }
 
 .aggregate-table th,
 .aggregate-table td {
-  padding: 12px 16px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--line);
   text-align: left;
   white-space: nowrap;
@@ -420,15 +420,22 @@ h1 {
 }
 
 .name-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 1.8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 150px;
+  max-width: 190px;
+  min-height: 2.35rem;
 }
 
 .name-text {
+  overflow: hidden;
+  max-width: 100%;
   font-weight: 700;
   letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .inline-player-button {
@@ -441,6 +448,10 @@ h1 {
   letter-spacing: -0.01em;
   cursor: pointer;
   text-align: left;
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .inline-player-button:hover {
@@ -464,19 +475,21 @@ h1 {
 .name-badges {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-width: 100%;
 }
 
 .name-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.55rem;
-  height: 1.55rem;
-  padding: 0 6px;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 4px;
   border-radius: 999px;
   border: 1px solid transparent;
-  font-size: 0.82rem;
+  font-size: 0.62rem;
   font-weight: 800;
   line-height: 1;
 }
@@ -503,7 +516,6 @@ h1 {
   background: #e9f1ff;
   border-color: #a9c2fb;
   color: #1657d8;
-  font-size: 0.9rem;
 }
 
 .name-badge-strategy {
@@ -576,6 +588,6 @@ h1 {
   }
 
   .aggregate-table {
-    min-width: 1040px;
+    min-width: 920px;
   }
 }
