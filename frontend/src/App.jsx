@@ -2,18 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import AggregateTable from "./components/AggregateTable.jsx";
 import FilterPanel from "./components/FilterPanel.jsx";
 import LineupBuilder, { buildEmptyLineup } from "./components/LineupBuilder.jsx";
-import Toolbar from "./components/Toolbar.jsx";
 import { buildMetricStats, buildPlayerBadges, buildPositionLeaderBadges, COLUMN_DEFS, parseMaxSalary } from "./utils.js";
-
-function buildStatusText(pageMode, generatedAt, refreshError) {
-  if (refreshError) {
-    return `Refresh failed: ${refreshError}`;
-  }
-  if (pageMode === "static") {
-    return `Published: ${generatedAt}`;
-  }
-  return `Last updated: ${generatedAt}`;
-}
 
 function getInitialSlateKey(initialData) {
   const fallback = initialData?.selected_slate_key || initialData?.slates?.[0]?.key || "no-slate";
@@ -30,15 +19,12 @@ function getInitialSlateKey(initialData) {
 }
 
 export default function App({ bootstrap }) {
-  const [data, setData] = useState(bootstrap.initialData || null);
-  const [pendingSport, setPendingSport] = useState(bootstrap.initialSport || bootstrap.initialData?.sport || "nba");
-  const [selectedSlateKey, setSelectedSlateKey] = useState(getInitialSlateKey(bootstrap.initialData));
+  const [data] = useState(bootstrap.initialData || null);
+  const [selectedSlateKey] = useState(getInitialSlateKey(bootstrap.initialData));
   const [selectedPositions, setSelectedPositions] = useState([]);
   const [maxSalary, setMaxSalary] = useState("");
   const [sortKey, setSortKey] = useState("salary");
   const [sortDir, setSortDir] = useState("desc");
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [refreshError, setRefreshError] = useState("");
   const [lineup, setLineup] = useState([]);
   const [taggedOnly, setTaggedOnly] = useState(false);
 
@@ -87,18 +73,6 @@ export default function App({ bootstrap }) {
     [baseFilteredRecords, positionLeaderBadges, taggedOnly],
   );
 
-  const sportOptions = bootstrap.sportOptions || [];
-  const pageMode = bootstrap.pageMode || "local";
-  const statusText = buildStatusText(pageMode, data?.generated_at || "", refreshError);
-
-  const handleSlateChange = (nextSlateKey) => {
-    setSelectedSlateKey(nextSlateKey);
-    setSelectedPositions([]);
-    setMaxSalary("");
-    setTaggedOnly(false);
-    setLineup([]);
-  };
-
   const handleSortChange = (nextSortKey, type) => {
     if (sortKey === nextSortKey) {
       setSortDir((current) => (current === "asc" ? "desc" : "asc"));
@@ -109,61 +83,10 @@ export default function App({ bootstrap }) {
     setSortDir(type === "number" ? "desc" : "asc");
   };
 
-  const handleSportChange = (nextSport) => {
-    setPendingSport(nextSport);
-    if (pageMode === "static") {
-      const target = sportOptions.find((sportOption) => sportOption.key === nextSport);
-      if (target?.href) {
-        window.location.href = target.href;
-      }
-    }
-  };
-
-  const handleRefresh = async () => {
-    if (!window.location.protocol.startsWith("http")) {
-      setRefreshError("local server mode is required (`python main.py --serve`).");
-      return;
-    }
-
-    setIsRefreshing(true);
-    setRefreshError("");
-    try {
-      const response = await fetch("/refresh", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ sport: pendingSport }),
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const payload = await response.json();
-      if (payload?.data) {
-        setData(payload.data);
-        setPendingSport(payload.data.sport);
-        setSelectedSlateKey(payload.data.selected_slate_key || payload.data.slates?.[0]?.key || "no-slate");
-        setSelectedPositions([]);
-        setMaxSalary("");
-        setTaggedOnly(false);
-        setSortKey("salary");
-        setSortDir("desc");
-        setLineup([]);
-      } else {
-        window.location.reload();
-      }
-    } catch (error) {
-      setRefreshError(error instanceof Error ? error.message : "Unknown refresh error");
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
   if (!data || !selectedSlate) {
     return (
       <div className="app-empty">
-        <h1>DFS Aggregate</h1>
+        <h1>DFS Lineup Builder</h1>
         <p>No data is available yet for this view.</p>
       </div>
     );
@@ -221,9 +144,7 @@ export default function App({ bootstrap }) {
       <section className="hero">
         <div className="hero-inner">
           <div className="hero-copy">
-            <span className="eyebrow">React Frontend</span>
-            <h1>{data.sport_label} DFS Aggregate</h1>
-            <p className="hero-text">{data.hero_text}</p>
+            <h1>{data.sport_label} Lineup Builder</h1>
           </div>
           <div className="hero-grid">
             <div className="meta-card">
@@ -249,23 +170,8 @@ export default function App({ bootstrap }) {
       <main className="page-content">
         <LineupBuilder
           slate={selectedSlate}
-          records={filteredRecords}
-          sportLabel={data.sport_label}
           lineup={lineup}
           setLineup={setLineup}
-        />
-
-        <Toolbar
-          pageMode={pageMode}
-          sportOptions={sportOptions}
-          pendingSport={pendingSport}
-          onSportChange={handleSportChange}
-          slateOptions={data.slates}
-          selectedSlateKey={selectedSlate.key}
-          onSlateChange={handleSlateChange}
-          statusText={statusText}
-          isRefreshing={isRefreshing}
-          onRefresh={handleRefresh}
         />
 
         <FilterPanel

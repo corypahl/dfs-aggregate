@@ -84,7 +84,6 @@ def run_pipeline(
         generated_at=generated_at,
         sport=sport_config.key,
         selected_slate_key=selected_slate_key,
-        report_mode=report_mode,
     )
     bootstrap_payload = build_bootstrap_payload(
         page_mode=report_mode,
@@ -97,7 +96,7 @@ def run_pipeline(
     write_json(aggregate_data_json_path, aggregate_payload)
     write_aggregate_html_report(
         aggregate_html_path,
-        title=f"{sport_config.label} DFS Aggregate",
+        title=f"{sport_config.label} Lineup Builder",
         bootstrap_payload=bootstrap_payload,
         frontend_assets=frontend_assets,
         asset_path_prefix=asset_path_prefix,
@@ -279,7 +278,6 @@ def build_aggregate_payload(
     generated_at: str,
     sport: str,
     selected_slate_key: str,
-    report_mode: str,
 ) -> dict[str, Any]:
     sport_config = get_sport_config(sport)
     return {
@@ -288,7 +286,6 @@ def build_aggregate_payload(
         "sport_label": sport_config.label,
         "sources": list(sport_config.source_labels),
         "sources_label": format_sources(sport_config),
-        "hero_text": build_hero_text(sport_config.key, report_mode),
         "selected_slate_key": selected_slate_key,
         "slates": [
             serialize_slate_payload(sport_config.key, slate_aggregate)
@@ -369,19 +366,6 @@ def write_aggregate_html_report(
 def resolve_asset_url(asset_path_prefix: str, asset_path: str) -> str:
     cleaned_prefix = asset_path_prefix if asset_path_prefix.endswith("/") else f"{asset_path_prefix}/"
     return f"{cleaned_prefix}{asset_path.lstrip('./')}"
-
-
-def build_hero_text(sport: str, report_mode: str) -> str:
-    sport_config = get_sport_config(sport)
-    if report_mode == "static":
-        return (
-            f"A GitHub Pages-ready static snapshot of aggregated {format_sources(sport_config)} public data, "
-            "now rendered through a React frontend so the board can grow toward the fuller dfs-ui builder experience."
-        )
-    return (
-        f"Aggregated {format_sources(sport_config)} public data rendered through a React frontend, with "
-        "safe name normalization, salary-aware matching, slate switching, and streamlined position and salary filters."
-    )
 
 
 def serialize_aggregated_record(record: AggregatedProjection) -> dict[str, Any]:

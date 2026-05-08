@@ -12,22 +12,7 @@ export function buildEmptyLineup(lineupTemplate) {
   }));
 }
 
-function getAllowedPositions(slot, lineupTemplate) {
-  return lineupTemplate?.position_map?.[slot] || [slot];
-}
-
-function isEligibleForSlot(record, slot, lineupTemplate) {
-  const playerPositions = record.builder_position_values || [];
-  const allowedPositions = getAllowedPositions(slot, lineupTemplate);
-  return allowedPositions.some((position) => playerPositions.includes(position));
-}
-
-export default function LineupBuilder({ slate, records, sportLabel, lineup, setLineup }) {
-  const selectedNames = useMemo(
-    () => lineup.map((lineupSlot) => lineupSlot.player?.name).filter(Boolean),
-    [lineup],
-  );
-
+export default function LineupBuilder({ slate, lineup, setLineup }) {
   const lineupStats = useMemo(() => {
     const totalSalary = lineup.reduce((sum, lineupSlot) => sum + Number(lineupSlot.player?.salary || 0), 0);
     const totalProjection = lineup.reduce(
@@ -47,28 +32,6 @@ export default function LineupBuilder({ slate, records, sportLabel, lineup, setL
       avgPerSlot,
     };
   }, [lineup, slate?.salary_cap]);
-
-  const addPlayerToLineup = (record) => {
-    setLineup((current) => {
-      if (current.some((lineupSlot) => lineupSlot.player?.name === record.name)) {
-        return current;
-      }
-
-      const next = [...current];
-      const targetIndex = next.findIndex(
-        (lineupSlot) => !lineupSlot.player && isEligibleForSlot(record, lineupSlot.slot, slate.lineup_template),
-      );
-      if (targetIndex < 0) {
-        return current;
-      }
-
-      next[targetIndex] = {
-        ...next[targetIndex],
-        player: record,
-      };
-      return next;
-    });
-  };
 
   const removePlayerFromLineup = (index) => {
     setLineup((current) =>
@@ -98,13 +61,6 @@ export default function LineupBuilder({ slate, records, sportLabel, lineup, setL
 
   return (
     <section className="builder-section">
-      <div className="builder-header">
-        <div>
-          <span className="section-label">Lineup Builder</span>
-          <h2>{sportLabel} lineup workspace</h2>
-        </div>
-      </div>
-
       <div className="builder-grid">
         <div className="builder-card">
           <div className="builder-card-header">
@@ -165,7 +121,7 @@ export default function LineupBuilder({ slate, records, sportLabel, lineup, setL
 
         <div className="builder-card">
           <div className="builder-card-header">
-            <h3>Lineup Stats</h3>
+            <h3>Lineup Overview</h3>
           </div>
           <div className="builder-stats">
             <div className="builder-stat">
