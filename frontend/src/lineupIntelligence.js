@@ -1,4 +1,4 @@
-import { buildStrategyBadgesByName, computeBlendedProjection } from "./utils.js";
+import { buildStrategyBadgesByName, computeBlendedProjection, isEligibleForSlot } from "./utils.js";
 
 const CASH_COMPONENTS = [
   { key: "avg_projection", weight: 0.34 },
@@ -80,16 +80,6 @@ export function createCashScorer(records = []) {
     scoreCache.set(record, score);
     return score;
   };
-}
-
-function getAllowedPositions(lineupTemplate, slot) {
-  return lineupTemplate?.position_map?.[slot] || [slot];
-}
-
-function isEligibleForSlot(record, slot, lineupTemplate) {
-  const playerPositions = record.builder_position_values || [];
-  const allowedPositions = getAllowedPositions(lineupTemplate, slot);
-  return allowedPositions.some((position) => playerPositions.includes(position));
 }
 
 function playerSalary(record) {

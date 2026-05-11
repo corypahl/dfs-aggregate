@@ -2,7 +2,7 @@ export const COLUMN_DEFS = [
   { key: "name", label: "Name", type: "text" },
   { key: "team", label: "Team", type: "text" },
   { key: "opponent", label: "Opponent", type: "text" },
-  { key: "rw_position", label: "RW Position", type: "text" },
+  { key: "rw_position", label: "POS", type: "text" },
   { key: "salary", label: "Salary", type: "number", currency: true },
   { key: "game_spread", label: "Spread", type: "number", signed: true, optional: true },
   { key: "game_total", label: "Total", type: "number", precision: 1, optional: true },
@@ -130,14 +130,13 @@ function hasNumericValue(record, key) {
   return record[key] !== null && record[key] !== undefined && Number.isFinite(Number(record[key]));
 }
 
-function getAllowedPositions(slot, lineupTemplate) {
+export function getAllowedPositions(slot, lineupTemplate) {
   return lineupTemplate?.position_map?.[slot] || [slot];
 }
 
-function isEligibleForSlot(record, slot, lineupTemplate) {
-  const playerPositions = record.builder_position_values || [];
+export function isEligibleForSlot(record, slot, lineupTemplate) {
   const allowedPositions = getAllowedPositions(slot, lineupTemplate);
-  return allowedPositions.some((position) => playerPositions.includes(position));
+  return hasAnyPosition(record, allowedPositions);
 }
 
 function uniqueLineupSlots(lineupTemplate) {

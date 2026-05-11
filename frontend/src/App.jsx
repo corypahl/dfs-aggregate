@@ -8,6 +8,7 @@ import {
   buildPositionLeaderBadges,
   buildStrategyBadgesByName,
   COLUMN_DEFS,
+  isEligibleForSlot,
   parseMaxSalary,
 } from "./utils.js";
 
@@ -137,13 +138,11 @@ export default function App({ bootstrap }) {
     if (selectedPlayerNames.includes(record.name)) {
       return false;
     }
-    const playerPositions = record.builder_position_values || [];
     return lineup.some((lineupSlot) => {
       if (lineupSlot.player) {
         return false;
       }
-      const allowedPositions = selectedSlate.lineup_template.position_map?.[lineupSlot.slot] || [lineupSlot.slot];
-      return allowedPositions.some((position) => playerPositions.includes(position));
+      return isEligibleForSlot(record, lineupSlot.slot, selectedSlate.lineup_template);
     });
   };
 
@@ -161,8 +160,7 @@ export default function App({ bootstrap }) {
         if (lineupSlot.player) {
           return false;
         }
-        const allowedPositions = selectedSlate.lineup_template.position_map?.[lineupSlot.slot] || [lineupSlot.slot];
-        return allowedPositions.some((position) => (record.builder_position_values || []).includes(position));
+        return isEligibleForSlot(record, lineupSlot.slot, selectedSlate.lineup_template);
       });
 
       if (targetIndex < 0) {
