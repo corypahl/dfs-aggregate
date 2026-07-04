@@ -11,6 +11,10 @@ const CASH_COMPONENTS = [
 
 const BEAM_SIZE = 1600;
 const CANDIDATE_LIMIT = 28;
+const DEFAULT_STRATEGY_BADGE_BOOST = 1.5;
+const STRATEGY_BADGE_BOOSTS = {
+  "mlb-team-bat": 0.35,
+};
 
 function numericValue(value) {
   if (value === null || value === undefined || value === "") {
@@ -98,12 +102,17 @@ function getCandidateBadges(record, selectedPlayers, sport) {
   return buildStrategyBadgesByName([record], selectedPlayers, sport)[record.name] || [];
 }
 
-function warningPenaltyForBadges(badges) {
-  return badges.reduce((sum, badge) => sum + (badge.className === "name-badge-warning" ? 9 : -1.5), 0);
+function contextPenaltyForBadges(badges) {
+  return badges.reduce((sum, badge) => {
+    if (badge.className === "name-badge-warning") {
+      return sum + 9;
+    }
+    return sum - (STRATEGY_BADGE_BOOSTS[badge.key] ?? DEFAULT_STRATEGY_BADGE_BOOST);
+  }, 0);
 }
 
 function candidateContextScore(record, selectedPlayers, sport) {
-  return -warningPenaltyForBadges(getCandidateBadges(record, selectedPlayers, sport));
+  return -contextPenaltyForBadges(getCandidateBadges(record, selectedPlayers, sport));
 }
 
 function evaluateLineup(lineup, scorePlayer, sport) {
@@ -113,7 +122,7 @@ function evaluateLineup(lineup, scorePlayer, sport) {
   const warningPenalty = players.reduce((sum, player) => {
     const otherPlayers = players.filter((otherPlayer) => otherPlayer.name !== player.name);
     const badges = getCandidateBadges(player, otherPlayers, sport);
-    return sum + warningPenaltyForBadges(badges);
+    return sum + contextPenaltyForBadges(badges);
   }, 0);
 
   return playerScore + totalProjection * 0.15 - warningPenalty;
