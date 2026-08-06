@@ -111,7 +111,7 @@ export default function AggregateTable({
           <tbody>
             {sortedRecords.map((record) => (
               <tr
-                key={`${record.name}-${record.rw_position || "na"}-${record.salary ?? "na"}-${record.fd_projection ?? "na"}-${record.rw_projection ?? "na"}`}
+                key={`${record.name}-${record.base_position || record.rw_position || "na"}-${record.salary ?? "na"}-${record.fd_projection ?? "na"}-${record.rw_projection ?? "na"}`}
                 className={selectedPlayerNames.includes(record.name) ? "is-selected-row" : ""}
               >
                 {columns.map((column) => {

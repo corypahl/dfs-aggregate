@@ -2,7 +2,7 @@ export const COLUMN_DEFS = [
   { key: "name", label: "Name", type: "text" },
   { key: "team", label: "Team", type: "text" },
   { key: "opponent", label: "Opponent", type: "text" },
-  { key: "rw_position", label: "POS", type: "text" },
+  { key: "base_position", label: "POS", type: "text" },
   { key: "salary", label: "Salary", type: "number", currency: true },
   { key: "game_spread", label: "Spread", type: "number", signed: true, optional: true },
   { key: "game_total", label: "Total", type: "number", precision: 1, optional: true },
@@ -157,10 +157,18 @@ export function buildPositionLeaderBadges(records, lineupTemplate) {
     { key: "grade", label: "top grade", className: "name-badge-grade" },
     { key: "avg_value", label: "top value", className: "name-badge-value" },
   ];
+  const hasMultiplierSlot = (lineupTemplate?.slots || []).some(
+    (slot) => getSlotPointMultiplier(slot, lineupTemplate) > 1,
+  );
 
   uniqueLineupSlots(lineupTemplate).forEach((slot) => {
     const candidates = records.filter((record) => isEligibleForSlot(record, slot, lineupTemplate));
-    metrics.forEach((metric) => {
+    const slotMetrics = hasMultiplierSlot
+      ? metrics.filter((metric) =>
+          getSlotPointMultiplier(slot, lineupTemplate) > 1 ? metric.key === "avg_projection" : metric.key !== "avg_projection",
+        )
+      : metrics;
+    slotMetrics.forEach((metric) => {
       const leader = candidates.reduce((best, candidate) => {
         if (!hasNumericValue(candidate, metric.key)) {
           return best;
@@ -188,10 +196,10 @@ export function buildPositionLeaderBadges(records, lineupTemplate) {
   return badgesByName;
 }
 
-export function buildStrategyBadgesByName(records = [], selectedPlayers = [], sport) {
+export function buildStrategyBadgesByName(records = [], selectedPlayers = [], sport, contestType = null) {
   const activePlayers = selectedPlayers.filter(Boolean);
   return records.reduce((badgesByName, record) => {
-    const badges = buildStrategyBadges(record, activePlayers, sport);
+    const badges = buildStrategyBadges(record, activePlayers, sport, contestType);
     if (badges.length) {
       badgesByName[record.name] = badges;
     }
@@ -199,20 +207,23 @@ export function buildStrategyBadgesByName(records = [], selectedPlayers = [], sp
   }, {});
 }
 
-function buildStrategyBadges(record, selectedPlayers, sport) {
+function buildStrategyBadges(record, selectedPlayers, sport, contestType) {
   if (!selectedPlayers.length || selectedPlayers.some((selectedPlayer) => selectedPlayer.name === record.name)) {
     return [];
   }
 
   const badges = [];
   const normalizedSport = String(sport || "").toLowerCase();
+  const singleGame = String(contestType || "").replace(/[^a-z]/gi, "").toLowerCase() === "singlegame";
   selectedPlayers.forEach((selectedPlayer) => {
     if (normalizedSport === "nfl" || normalizedSport === "cfb") {
       addFootballStrategyBadges(badges, record, selectedPlayer);
     } else if (normalizedSport === "mlb") {
       addMlbStrategyBadges(badges, record, selectedPlayer);
     } else if (["nba", "wnba", "cbb"].includes(normalizedSport)) {
-      addBasketballStrategyBadges(badges, record, selectedPlayers);
+      addBasketballStrategyBadges(badges, record, selectedPlayers, singleGame);
+    } else if (normalizedSport === "nhl") {
+      addNhlStrategyBadges(badges, record, selectedPlayer);
     } else if (normalizedSport === "epl") {
       addEplStrategyBadges(badges, record, selectedPlayer);
     }
@@ -236,6 +247,9 @@ function addFootballStrategyBadges(badges, record, selectedPlayer) {
   if (isDefense(selectedPlayer) && sameTeam(record, selectedPlayer) && hasAnyPosition(record, ["RB"])) {
     addStrategyBadge(badges, "nfl-defense-rb", "RB+D", `Same-team RB with selected defense ${selectedPlayer.name}`, "name-badge-strategy");
   }
+  if (hasAnyPosition(selectedPlayer, ["QB"]) && areOpponents(record, selectedPlayer) && hasAnyPosition(record, ["WR", "TE"])) {
+    addStrategyBadge(badges, "nfl-bring-back", "Bring Back", `Opposing pass catcher for a ${selectedPlayer.name} game script`, "name-badge-strategy");
+  }
 }
 
 function addMlbStrategyBadges(badges, record, selectedPlayer) {
@@ -250,7 +264,10 @@ function addMlbStrategyBadges(badges, record, selectedPlayer) {
   }
 }
 
-function addBasketballStrategyBadges(badges, record, selectedPlayers) {
+function addBasketballStrategyBadges(badges, record, selectedPlayers, singleGame) {
+  if (singleGame) {
+    return;
+  }
   const team = normalizeTeam(record.team);
   if (!team) {
     return;
@@ -258,6 +275,17 @@ function addBasketballStrategyBadges(badges, record, selectedPlayers) {
   const selectedSameTeamCount = selectedPlayers.filter((selectedPlayer) => normalizeTeam(selectedPlayer.team) === team).length;
   if (selectedSameTeamCount >= 2) {
     addStrategyBadge(badges, "basketball-team-x3", "Team x3", "Would be the third player from this team", "name-badge-warning");
+  }
+}
+
+function addNhlStrategyBadges(badges, record, selectedPlayer) {
+  const recordIsGoalie = hasAnyPosition(record, ["G", "GK"]);
+  const selectedIsGoalie = hasAnyPosition(selectedPlayer, ["G", "GK"]);
+  if (sameTeam(record, selectedPlayer) && !recordIsGoalie && !selectedIsGoalie) {
+    addStrategyBadge(badges, "nhl-skater-stack", "Skater Stack", `Same-team skater with ${selectedPlayer.name}`, "name-badge-strategy");
+  }
+  if (areOpponents(record, selectedPlayer) && recordIsGoalie !== selectedIsGoalie) {
+    addStrategyBadge(badges, "nhl-vs-goalie", "Vs G", "Skater and opposing goalie work against the same game script", "name-badge-warning");
   }
 }
 
@@ -317,6 +345,7 @@ function getRecordPositions(record) {
   const values = [
     ...(record.builder_position_values || []),
     ...(record.position_filter_values || []),
+    ...splitPositionText(record.base_position),
     ...splitPositionText(record.builder_position),
     ...splitPositionText(record.fd_position),
     ...splitPositionText(record.rw_position),
@@ -371,6 +400,24 @@ export function computeBlendedProjection(record) {
     return null;
   }
   return values.reduce((sum, value) => sum + Number(value), 0) / values.length;
+}
+
+export function getSlotSalaryMultiplier(slot, lineupTemplate) {
+  return Number(lineupTemplate?.slot_salary_multipliers?.[slot] || 1);
+}
+
+export function getSlotPointMultiplier(slot, lineupTemplate) {
+  return Number(lineupTemplate?.slot_point_multipliers?.[slot] || 1);
+}
+
+export function computeSlotSalary(record, slot, lineupTemplate) {
+  const salary = Number(record?.salary || 0);
+  return salary * getSlotSalaryMultiplier(slot, lineupTemplate);
+}
+
+export function computeSlotProjection(record, slot, lineupTemplate) {
+  const projection = Number(computeBlendedProjection(record || {}) || 0);
+  return projection * getSlotPointMultiplier(slot, lineupTemplate);
 }
 
 export function formatSalary(value) {

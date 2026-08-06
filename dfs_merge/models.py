@@ -23,6 +23,7 @@ class AggregatedProjection:
     name: str
     fd_position: str | None
     rw_position: str | None
+    base_position: str | None
     team: str | None
     opponent: str | None
     game_spread: float | None

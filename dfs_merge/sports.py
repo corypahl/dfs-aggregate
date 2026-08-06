@@ -8,6 +8,10 @@ class LineupTemplate:
     slots: tuple[str, ...]
     position_map: dict[str, tuple[str, ...]]
     fallback_salary_cap: int
+    slot_salary_multipliers: dict[str, float] | None = None
+    slot_point_multipliers: dict[str, float] | None = None
+    max_players_per_team: int | None = None
+    min_teams: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +22,27 @@ class SportConfig:
     rotowire_slug: str
     source_labels: tuple[str, ...]
     lineup_templates: dict[str, LineupTemplate]
+
+
+SINGLE_GAME_TEMPLATE = LineupTemplate(
+    slots=("MVP", "FLEX", "FLEX", "FLEX", "FLEX", "FLEX"),
+    position_map={"MVP": ("MVP", "UTIL"), "FLEX": ("MVP", "UTIL")},
+    fallback_salary_cap=60000,
+    slot_salary_multipliers={"MVP": 1.5},
+    slot_point_multipliers={"MVP": 1.5},
+)
+
+TEAM_SINGLE_GAME_TEMPLATE = LineupTemplate(
+    slots=SINGLE_GAME_TEMPLATE.slots,
+    position_map=SINGLE_GAME_TEMPLATE.position_map,
+    fallback_salary_cap=SINGLE_GAME_TEMPLATE.fallback_salary_cap,
+    slot_salary_multipliers=SINGLE_GAME_TEMPLATE.slot_salary_multipliers,
+    slot_point_multipliers=SINGLE_GAME_TEMPLATE.slot_point_multipliers,
+    max_players_per_team=5,
+    min_teams=2,
+)
+
+TEAM_SINGLE_GAME_SPORTS = {"epl", "nfl", "nba", "wnba", "nhl", "mlb", "cfb", "cbb", "cricket"}
 
 
 SPORT_CONFIGS: dict[str, SportConfig] = {
@@ -89,11 +114,7 @@ SPORT_CONFIGS: dict[str, SportConfig] = {
                 position_map={"W": ("LW", "RW")},
                 fallback_salary_cap=55000,
             ),
-            "single_game": LineupTemplate(
-                slots=("MVP", "UTIL", "UTIL", "UTIL", "UTIL"),
-                position_map={},
-                fallback_salary_cap=60000,
-            ),
+            "single_game": TEAM_SINGLE_GAME_TEMPLATE,
         },
     ),
     "mlb": SportConfig(
@@ -220,4 +241,8 @@ def normalize_contest_type(contest_type: str | None) -> str:
 
 def get_lineup_template(sport: str, contest_type: str | None) -> LineupTemplate | None:
     config = get_sport_config(sport)
-    return config.lineup_templates.get(normalize_contest_type(contest_type))
+    normalized_contest_type = normalize_contest_type(contest_type)
+    if normalized_contest_type == "single_game":
+        fallback_template = TEAM_SINGLE_GAME_TEMPLATE if config.key in TEAM_SINGLE_GAME_SPORTS else SINGLE_GAME_TEMPLATE
+        return config.lineup_templates.get(normalized_contest_type, fallback_template)
+    return config.lineup_templates.get(normalized_contest_type)

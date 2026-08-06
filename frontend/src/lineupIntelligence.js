@@ -1,4 +1,11 @@
-import { buildStrategyBadgesByName, computeBlendedProjection, isEligibleForSlot } from "./utils.js";
+import {
+  buildStrategyBadgesByName,
+  computeBlendedProjection,
+  computeSlotProjection,
+  computeSlotSalary,
+  getSlotPointMultiplier,
+  isEligibleForSlot,
+} from "./utils.js";
 
 const CASH_COMPONENTS = [
   { key: "avg_projection", weight: 0.34 },
@@ -86,20 +93,58 @@ export function createCashScorer(records = []) {
   };
 }
 
+function isSingleGameSlate(slate) {
+  return String(slate?.contest_type || "").replace(/[^a-z]/gi, "").toLowerCase() === "singlegame";
+}
+
+function createSingleGameScorer(records = []) {
+  const projections = records
+    .map((record) => numericValue(computeBlendedProjection(record)))
+    .filter((value) => value !== null);
+  const projectionStats = {
+    min: projections.length ? Math.min(...projections) : null,
+    max: projections.length ? Math.max(...projections) : null,
+  };
+
+  return function scoreSingleGamePlayer(record) {
+    if (!record) {
+      return 0;
+    }
+    const projectionScore = normalizedScore(computeBlendedProjection(record), projectionStats) ?? 0;
+    const gradeScore = numericValue(record.grade) ?? projectionScore;
+    const valueScore = numericValue(record.avg_value) ?? projectionScore;
+    return projectionScore * 0.7 + gradeScore * 0.2 + valueScore * 0.1;
+  };
+}
+
+function createLineupScorer(records, slate) {
+  if (!isSingleGameSlate(slate)) {
+    return createCashScorer(records);
+  }
+  const lineupTemplate = slate?.lineup_template;
+  const eligibleRecords = records.filter((record) =>
+    (lineupTemplate?.slots || []).some((slot) => isEligibleForSlot(record, slot, lineupTemplate)),
+  );
+  return createSingleGameScorer(eligibleRecords);
+}
+
 function playerSalary(record) {
   return numericValue(record?.salary) || 0;
 }
 
-function lineupSalary(lineup) {
-  return lineup.reduce((sum, lineupSlot) => sum + playerSalary(lineupSlot.player), 0);
+function lineupSalary(lineup, lineupTemplate) {
+  return lineup.reduce(
+    (sum, lineupSlot) => sum + computeSlotSalary(lineupSlot.player, lineupSlot.slot, lineupTemplate),
+    0,
+  );
 }
 
 function selectedNames(lineup) {
   return new Set(lineup.map((lineupSlot) => lineupSlot.player?.name).filter(Boolean));
 }
 
-function getCandidateBadges(record, selectedPlayers, sport) {
-  return buildStrategyBadgesByName([record], selectedPlayers, sport)[record.name] || [];
+function getCandidateBadges(record, selectedPlayers, sport, slate) {
+  return buildStrategyBadgesByName([record], selectedPlayers, sport, slate?.contest_type)[record.name] || [];
 }
 
 function contextPenaltyForBadges(badges) {
@@ -111,21 +156,70 @@ function contextPenaltyForBadges(badges) {
   }, 0);
 }
 
-function candidateContextScore(record, selectedPlayers, sport) {
-  return -contextPenaltyForBadges(getCandidateBadges(record, selectedPlayers, sport));
+function candidateContextScore(record, selectedPlayers, sport, slate) {
+  return -contextPenaltyForBadges(getCandidateBadges(record, selectedPlayers, sport, slate));
 }
 
-function evaluateLineup(lineup, scorePlayer, sport) {
+function singleGameScriptScore(lineup) {
+  const counts = lineup.reduce((byTeam, lineupSlot) => {
+    const team = String(lineupSlot.player?.team || "").trim().toUpperCase();
+    if (team) {
+      byTeam.set(team, (byTeam.get(team) || 0) + 1);
+    }
+    return byTeam;
+  }, new Map());
+  if (counts.size !== 2) {
+    return 0;
+  }
+
+  const split = [...counts.values()].sort((left, right) => right - left).join("-");
+  if (split === "4-2") {
+    return 5;
+  }
+  if (split === "3-3") {
+    return 3;
+  }
+  if (split === "5-1") {
+    return 1;
+  }
+  return 0;
+}
+
+function respectsTeamRules(lineup, lineupTemplate, requireMinimumTeams = false) {
+  const teamCounts = lineup.reduce((counts, lineupSlot) => {
+    const team = String(lineupSlot.player?.team || "").trim().toUpperCase();
+    if (team) {
+      counts.set(team, (counts.get(team) || 0) + 1);
+    }
+    return counts;
+  }, new Map());
+  const maxPlayersPerTeam = numericValue(lineupTemplate?.max_players_per_team);
+  if (maxPlayersPerTeam !== null && [...teamCounts.values()].some((count) => count > maxPlayersPerTeam)) {
+    return false;
+  }
+  const minimumTeams = numericValue(lineupTemplate?.min_teams);
+  return !requireMinimumTeams || minimumTeams === null || teamCounts.size >= minimumTeams;
+}
+
+function evaluateLineup(lineup, scorePlayer, sport, slate) {
   const players = lineup.map((lineupSlot) => lineupSlot.player).filter(Boolean);
-  const playerScore = players.reduce((sum, player) => sum + scorePlayer(player), 0);
-  const totalProjection = players.reduce((sum, player) => sum + Number(computeBlendedProjection(player) || 0), 0);
+  const lineupTemplate = slate?.lineup_template;
+  const playerScore = lineup.reduce(
+    (sum, lineupSlot) => sum + scorePlayer(lineupSlot.player) * getSlotPointMultiplier(lineupSlot.slot, lineupTemplate),
+    0,
+  );
+  const totalProjection = lineup.reduce(
+    (sum, lineupSlot) => sum + computeSlotProjection(lineupSlot.player, lineupSlot.slot, lineupTemplate),
+    0,
+  );
   const warningPenalty = players.reduce((sum, player) => {
     const otherPlayers = players.filter((otherPlayer) => otherPlayer.name !== player.name);
-    const badges = getCandidateBadges(player, otherPlayers, sport);
+    const badges = getCandidateBadges(player, otherPlayers, sport, slate);
     return sum + contextPenaltyForBadges(badges);
   }, 0);
+  const gameScriptScore = isSingleGameSlate(slate) ? singleGameScriptScore(lineup) : 0;
 
-  return playerScore + totalProjection * 0.15 - warningPenalty;
+  return playerScore + totalProjection * 0.15 - warningPenalty + gameScriptScore;
 }
 
 function uniqueTopCandidates(candidates, scorePlayer) {
@@ -136,10 +230,18 @@ function uniqueTopCandidates(candidates, scorePlayer) {
     return rightValue - leftValue;
   });
   const bySalary = [...candidates].sort((left, right) => playerSalary(left) - playerSalary(right));
+  const byProjection = [...candidates].sort(
+    (left, right) => Number(computeBlendedProjection(right) || 0) - Number(computeBlendedProjection(left) || 0),
+  );
   const seen = new Set();
   const merged = [];
 
-  [...byScore.slice(0, CANDIDATE_LIMIT), ...byValue.slice(0, 10), ...bySalary.slice(0, 8)].forEach((candidate) => {
+  [
+    ...byScore.slice(0, CANDIDATE_LIMIT),
+    ...byProjection.slice(0, 12),
+    ...byValue.slice(0, 10),
+    ...bySalary.slice(0, 8),
+  ].forEach((candidate) => {
     if (!seen.has(candidate.name)) {
       seen.add(candidate.name);
       merged.push(candidate);
@@ -180,14 +282,14 @@ export function optimizeLineup({
     return null;
   }
 
-  const scorePlayer = createCashScorer(records);
+  const scorePlayer = createLineupScorer(records, slate);
   const salaryCap = numericValue(slate?.salary_cap) || 0;
   const startingLineup = lineupTemplate.slots.map((slot, index) => ({
     slot,
     player: preserveCurrent ? lineup[index]?.player || null : null,
   }));
-  const startingSalary = lineupSalary(startingLineup);
-  if (salaryCap > 0 && startingSalary > salaryCap) {
+  const startingSalary = lineupSalary(startingLineup, lineupTemplate);
+  if ((salaryCap > 0 && startingSalary > salaryCap) || !respectsTeamRules(startingLineup, lineupTemplate)) {
     return null;
   }
 
@@ -201,7 +303,10 @@ export function optimizeLineup({
       lineup: startingLineup,
       names: selectedNames(startingLineup),
       salary: startingSalary,
-      score: startingLineup.reduce((sum, lineupSlot) => sum + scorePlayer(lineupSlot.player), 0),
+      score: startingLineup.reduce(
+        (sum, lineupSlot) => sum + scorePlayer(lineupSlot.player) * getSlotPointMultiplier(lineupSlot.slot, lineupTemplate),
+        0,
+      ),
     },
   ];
 
@@ -213,7 +318,7 @@ export function optimizeLineup({
         if (partial.names.has(candidate.name)) {
           return;
         }
-        const nextSalary = partial.salary + playerSalary(candidate);
+        const nextSalary = partial.salary + computeSlotSalary(candidate, openSlot.slot, lineupTemplate);
         if (salaryCap > 0 && nextSalary > salaryCap) {
           return;
         }
@@ -222,11 +327,17 @@ export function optimizeLineup({
         );
         const nextNames = new Set(partial.names);
         nextNames.add(candidate.name);
+        if (!respectsTeamRules(nextLineup, lineupTemplate)) {
+          return;
+        }
         nextPartials.push({
           lineup: nextLineup,
           names: nextNames,
           salary: nextSalary,
-          score: partial.score + scorePlayer(candidate) + candidateContextScore(candidate, selectedPlayers, sport),
+          score:
+            partial.score +
+            scorePlayer(candidate) * getSlotPointMultiplier(openSlot.slot, lineupTemplate) +
+            candidateContextScore(candidate, selectedPlayers, sport, slate),
         });
       });
     });
@@ -234,7 +345,11 @@ export function optimizeLineup({
     partials = nextPartials.sort((left, right) => right.score - left.score).slice(0, BEAM_SIZE);
   });
 
-  const completeLineups = partials.filter((partial) => partial.lineup.every((lineupSlot) => lineupSlot.player));
+  const completeLineups = partials.filter(
+    (partial) =>
+      partial.lineup.every((lineupSlot) => lineupSlot.player) &&
+      respectsTeamRules(partial.lineup, lineupTemplate, true),
+  );
   if (!completeLineups.length) {
     return null;
   }
@@ -242,7 +357,7 @@ export function optimizeLineup({
   const best = completeLineups
     .map((partial) => ({
       ...partial,
-      finalScore: evaluateLineup(partial.lineup, scorePlayer, sport),
+      finalScore: evaluateLineup(partial.lineup, scorePlayer, sport, slate),
     }))
     .sort((left, right) => right.finalScore - left.finalScore)[0];
 
@@ -250,7 +365,10 @@ export function optimizeLineup({
     lineup: best.lineup,
     salary: best.salary,
     score: best.finalScore,
-    projection: best.lineup.reduce((sum, lineupSlot) => sum + Number(computeBlendedProjection(lineupSlot.player) || 0), 0),
+    projection: best.lineup.reduce(
+      (sum, lineupSlot) => sum + computeSlotProjection(lineupSlot.player, lineupSlot.slot, lineupTemplate),
+      0,
+    ),
   };
 }
 
@@ -259,26 +377,37 @@ export function buildBestAvailableBySlot({ records = [], lineup = [], slate, spo
   if (!lineupTemplate?.slots?.length) {
     return [];
   }
-  const scorePlayer = createCashScorer(records);
+  const scorePlayer = createLineupScorer(records, slate);
   const currentNames = selectedNames(lineup);
   const selectedPlayers = lineup.map((lineupSlot) => lineupSlot.player).filter(Boolean);
   const remainingSalary =
-    (numericValue(slate?.salary_cap) || 0) > 0 ? (numericValue(slate?.salary_cap) || 0) - lineupSalary(lineup) : null;
+    (numericValue(slate?.salary_cap) || 0) > 0
+      ? (numericValue(slate?.salary_cap) || 0) - lineupSalary(lineup, lineupTemplate)
+      : null;
   const openSlotLabels = [...new Set(lineup.filter((lineupSlot) => !lineupSlot.player).map((lineupSlot) => lineupSlot.slot))];
 
   return openSlotLabels
     .map((slot) => {
+      const targetIndex = lineup.findIndex((lineupSlot) => !lineupSlot.player && lineupSlot.slot === slot);
       const best = records
         .filter((record) => !currentNames.has(record.name) && isEligibleForSlot(record, slot, lineupTemplate))
-        .filter((record) => remainingSalary === null || playerSalary(record) <= remainingSalary)
+        .filter((record) => remainingSalary === null || computeSlotSalary(record, slot, lineupTemplate) <= remainingSalary)
+        .filter((record) => {
+          const nextLineup = lineup.map((lineupSlot, index) =>
+            index === targetIndex ? { ...lineupSlot, player: record } : lineupSlot,
+          );
+          return respectsTeamRules(nextLineup, lineupTemplate);
+        })
         .map((record) => {
-          const badges = getCandidateBadges(record, selectedPlayers, sport);
-          const cashScore = scorePlayer(record) + candidateContextScore(record, selectedPlayers, sport);
+          const badges = getCandidateBadges(record, selectedPlayers, sport, slate);
+          const cashScore =
+            scorePlayer(record) * getSlotPointMultiplier(slot, lineupTemplate) +
+            candidateContextScore(record, selectedPlayers, sport, slate);
           return {
             slot,
             player: record,
             cashScore,
-            projection: computeBlendedProjection(record),
+            projection: computeSlotProjection(record, slot, lineupTemplate),
             badges,
           };
         })
@@ -294,9 +423,9 @@ export function buildSwapSuggestions({ records = [], lineup = [], slate, sport, 
     return [];
   }
 
-  const scorePlayer = createCashScorer(records);
+  const scorePlayer = createLineupScorer(records, slate);
   const salaryCap = numericValue(slate?.salary_cap) || 0;
-  const currentSalary = lineupSalary(lineup);
+  const currentSalary = lineupSalary(lineup, lineupTemplate);
   const currentNames = selectedNames(lineup);
 
   return lineup
@@ -309,18 +438,33 @@ export function buildSwapSuggestions({ records = [], lineup = [], slate, sport, 
         .map((slot) => slot.player)
         .filter(Boolean);
       const currentPlayer = lineupSlot.player;
-      const currentProjection = Number(computeBlendedProjection(currentPlayer) || 0);
+      const currentProjection = computeSlotProjection(currentPlayer, lineupSlot.slot, lineupTemplate);
       const currentScore =
-        scorePlayer(currentPlayer) + candidateContextScore(currentPlayer, selectedWithoutCurrent, sport);
-      const availableSalary = salaryCap > 0 ? salaryCap - (currentSalary - playerSalary(currentPlayer)) : null;
+        scorePlayer(currentPlayer) * getSlotPointMultiplier(lineupSlot.slot, lineupTemplate) +
+        candidateContextScore(currentPlayer, selectedWithoutCurrent, sport, slate);
+      const availableSalary =
+        salaryCap > 0
+          ? salaryCap - (currentSalary - computeSlotSalary(currentPlayer, lineupSlot.slot, lineupTemplate))
+          : null;
 
       const bestReplacement = records
         .filter((record) => record.name !== currentPlayer.name && !currentNames.has(record.name))
         .filter((record) => isEligibleForSlot(record, lineupSlot.slot, lineupTemplate))
-        .filter((record) => availableSalary === null || playerSalary(record) <= availableSalary)
+        .filter(
+          (record) => availableSalary === null || computeSlotSalary(record, lineupSlot.slot, lineupTemplate) <= availableSalary,
+        )
+        .filter((record) => {
+          const nextLineup = lineup.map((slot, lineupIndex) =>
+            lineupIndex === index ? { ...slot, player: record } : slot,
+          );
+          const requireMinimumTeams = nextLineup.every((slot) => slot.player);
+          return respectsTeamRules(nextLineup, lineupTemplate, requireMinimumTeams);
+        })
         .map((record) => {
-          const nextProjection = Number(computeBlendedProjection(record) || 0);
-          const nextScore = scorePlayer(record) + candidateContextScore(record, selectedWithoutCurrent, sport);
+          const nextProjection = computeSlotProjection(record, lineupSlot.slot, lineupTemplate);
+          const nextScore =
+            scorePlayer(record) * getSlotPointMultiplier(lineupSlot.slot, lineupTemplate) +
+            candidateContextScore(record, selectedWithoutCurrent, sport, slate);
           return {
             out: currentPlayer,
             in: record,

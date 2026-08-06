@@ -163,6 +163,8 @@ def build_slate_aggregates(
     for slate_collection in rotowire_slate_collections:
         records, match_report = aggregate_sources(fanduel_records, slate_collection["records"])
         slate = slate_collection.get("slate")
+        if (slate or {}).get("contestType") == "SingleGame":
+            records = [record for record in records if record.rw_position]
         slate_aggregates.append(
             {
                 "key": build_slate_key(slate),
@@ -243,6 +245,7 @@ def write_aggregate_csv(records: list[AggregatedProjection], path: Path) -> None
             handle,
             fieldnames=[
                 "name",
+                "base_position",
                 "rw_position",
                 "team",
                 "opponent",
@@ -266,6 +269,7 @@ def write_aggregate_csv(records: list[AggregatedProjection], path: Path) -> None
             writer.writerow(
                 {
                     "name": record.name,
+                    "base_position": record.base_position,
                     "rw_position": record.rw_position,
                     "team": record.team,
                     "opponent": record.opponent,
@@ -383,11 +387,12 @@ def resolve_asset_url(asset_path_prefix: str, asset_path: str) -> str:
 
 
 def serialize_aggregated_record(record: AggregatedProjection) -> dict[str, Any]:
-    builder_position = record.fd_position or record.rw_position
+    builder_position = record.rw_position or record.fd_position
     return {
         "name": record.name,
         "fd_position": record.fd_position,
         "rw_position": record.rw_position,
+        "base_position": record.base_position,
         "team": record.team,
         "opponent": record.opponent,
         "game_spread": record.game_spread,
@@ -403,7 +408,7 @@ def serialize_aggregated_record(record: AggregatedProjection) -> dict[str, Any]:
         "avg_projection": record.avg_projection,
         "avg_value": record.avg_value,
         "grade": record.grade,
-        "position_filter_values": split_position_filter_values(record.rw_position),
+        "position_filter_values": split_position_filter_values(record.base_position),
         "builder_position": builder_position,
         "builder_position_values": split_builder_position_values(builder_position),
     }
@@ -432,6 +437,10 @@ def serialize_slate_payload(sport: str, slate_aggregate: dict[str, Any]) -> dict
         else {
             "slots": list(lineup_template.slots),
             "position_map": {key: list(values) for key, values in lineup_template.position_map.items()},
+            "slot_salary_multipliers": dict(lineup_template.slot_salary_multipliers or {}),
+            "slot_point_multipliers": dict(lineup_template.slot_point_multipliers or {}),
+            "max_players_per_team": lineup_template.max_players_per_team,
+            "min_teams": lineup_template.min_teams,
         },
         "records": [serialize_aggregated_record(record) for record in slate_aggregate["records"]],
     }
@@ -441,8 +450,8 @@ def build_position_options(records: list[AggregatedProjection], sport: str) -> l
     positions = {
         token
         for record in records
-        if record.rw_position
-        for token in split_position_filter_values(record.rw_position)
+        if record.base_position
+        for token in split_position_filter_values(record.base_position)
     }
     return sorted(positions, key=lambda value: position_sort_key(value, sport))
 

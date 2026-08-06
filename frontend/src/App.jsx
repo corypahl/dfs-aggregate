@@ -8,9 +8,37 @@ import {
   buildPositionLeaderBadges,
   buildStrategyBadgesByName,
   COLUMN_DEFS,
+  computeSlotSalary,
   isEligibleForSlot,
   parseMaxSalary,
 } from "./utils.js";
+
+function lineupFitsSlateRules(lineup, slate) {
+  const lineupTemplate = slate?.lineup_template;
+  const salaryCap = Number(slate?.salary_cap || 0);
+  const salary = lineup.reduce(
+    (sum, lineupSlot) => sum + computeSlotSalary(lineupSlot.player, lineupSlot.slot, lineupTemplate),
+    0,
+  );
+  if (salaryCap > 0 && salary > salaryCap) {
+    return false;
+  }
+
+  const teamCounts = lineup.reduce((counts, lineupSlot) => {
+    const team = String(lineupSlot.player?.team || "").trim().toUpperCase();
+    if (team) {
+      counts.set(team, (counts.get(team) || 0) + 1);
+    }
+    return counts;
+  }, new Map());
+  const maxPlayersPerTeam = Number(lineupTemplate?.max_players_per_team || 0);
+  if (maxPlayersPerTeam > 0 && [...teamCounts.values()].some((count) => count > maxPlayersPerTeam)) {
+    return false;
+  }
+  const isComplete = lineup.every((lineupSlot) => lineupSlot.player);
+  const minimumTeams = Number(lineupTemplate?.min_teams || 0);
+  return !isComplete || minimumTeams <= 0 || teamCounts.size >= minimumTeams;
+}
 
 function getInitialSlateKey(initialData) {
   const fallback = initialData?.selected_slate_key || initialData?.slates?.[0]?.key || "no-slate";
@@ -94,8 +122,8 @@ export default function App({ bootstrap }) {
     [baseFilteredRecords, selectedSlate?.lineup_template],
   );
   const strategyBadgesByName = useMemo(
-    () => buildStrategyBadgesByName(baseFilteredRecords, selectedPlayers, data?.sport),
-    [baseFilteredRecords, data?.sport, selectedPlayers],
+    () => buildStrategyBadgesByName(baseFilteredRecords, selectedPlayers, data?.sport, selectedSlate?.contest_type),
+    [baseFilteredRecords, data?.sport, selectedPlayers, selectedSlate?.contest_type],
   );
   const filteredRecords = useMemo(
     () =>
@@ -138,12 +166,17 @@ export default function App({ bootstrap }) {
     if (selectedPlayerNames.includes(record.name)) {
       return false;
     }
-    return lineup.some((lineupSlot) => {
-      if (lineupSlot.player) {
-        return false;
-      }
-      return isEligibleForSlot(record, lineupSlot.slot, selectedSlate.lineup_template);
-    });
+    const targetIndex = lineup.findIndex(
+      (lineupSlot) =>
+        !lineupSlot.player && isEligibleForSlot(record, lineupSlot.slot, selectedSlate.lineup_template),
+    );
+    if (targetIndex < 0) {
+      return false;
+    }
+    const next = lineup.map((lineupSlot, index) =>
+      index === targetIndex ? { ...lineupSlot, player: record } : lineupSlot,
+    );
+    return lineupFitsSlateRules(next, selectedSlate);
   };
 
   const addPlayerToLineup = (record) => {
@@ -171,7 +204,7 @@ export default function App({ bootstrap }) {
         ...next[targetIndex],
         player: record,
       };
-      return next;
+      return lineupFitsSlateRules(next, selectedSlate) ? next : current;
     });
   };
 

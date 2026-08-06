@@ -4,7 +4,13 @@ import {
   buildSwapSuggestions,
   optimizeLineup,
 } from "../lineupIntelligence.js";
-import { computeBlendedProjection, formatNumber, formatSalary } from "../utils.js";
+import {
+  computeSlotProjection,
+  computeSlotSalary,
+  formatNumber,
+  formatSalary,
+  getSlotSalaryMultiplier,
+} from "../utils.js";
 
 export function buildEmptyLineup(lineupTemplate) {
   if (!lineupTemplate?.slots?.length) {
@@ -24,16 +30,37 @@ function formatDelta(value, options = {}) {
 }
 
 export default function LineupBuilder({ slate, lineup, setLineup, records = [], sport }) {
+  const isSingleGame = String(slate?.contest_type || "").replace(/[^a-z]/gi, "").toLowerCase() === "singlegame";
   const lineupStats = useMemo(() => {
-    const totalSalary = lineup.reduce((sum, lineupSlot) => sum + Number(lineupSlot.player?.salary || 0), 0);
-    const totalProjection = lineup.reduce(
-      (sum, lineupSlot) => sum + Number(computeBlendedProjection(lineupSlot.player || {}) || 0),
+    const lineupTemplate = slate?.lineup_template;
+    const totalSalary = lineup.reduce(
+      (sum, lineupSlot) => sum + computeSlotSalary(lineupSlot.player, lineupSlot.slot, lineupTemplate),
       0,
     );
-    const openSlots = lineup.filter((lineupSlot) => !lineupSlot.player).length;
+    const totalProjection = lineup.reduce(
+      (sum, lineupSlot) => sum + computeSlotProjection(lineupSlot.player, lineupSlot.slot, lineupTemplate),
+      0,
+    );
+    const emptySlots = lineup.filter((lineupSlot) => !lineupSlot.player);
+    const openSlots = emptySlots.length;
     const salaryCap = Number(slate?.salary_cap || 0);
     const remainingSalary = salaryCap - totalSalary;
-    const avgPerSlot = openSlots > 0 ? remainingSalary / openSlots : 0;
+    const openSalaryUnits = emptySlots.reduce(
+      (sum, lineupSlot) => sum + getSlotSalaryMultiplier(lineupSlot.slot, lineupTemplate),
+      0,
+    );
+    const avgPerSlot = openSalaryUnits > 0 ? remainingSalary / openSalaryUnits : 0;
+    const teamCounts = lineup.reduce((counts, lineupSlot) => {
+      const team = String(lineupSlot.player?.team || "").trim().toUpperCase();
+      if (team) {
+        counts.set(team, (counts.get(team) || 0) + 1);
+      }
+      return counts;
+    }, new Map());
+    const teamSplit = [...teamCounts.entries()]
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .map(([team, count]) => `${team} ${count}`)
+      .join(" / ");
     return {
       salaryCap,
       totalSalary,
@@ -41,8 +68,9 @@ export default function LineupBuilder({ slate, lineup, setLineup, records = [], 
       openSlots,
       remainingSalary,
       avgPerSlot,
+      teamSplit,
     };
-  }, [lineup, slate?.salary_cap]);
+  }, [lineup, slate?.lineup_template, slate?.salary_cap]);
 
   const bestAvailable = useMemo(
     () => buildBestAvailableBySlot({ records, lineup, slate, sport }).slice(0, 5),
@@ -79,6 +107,20 @@ export default function LineupBuilder({ slate, lineup, setLineup, records = [], 
     );
   };
 
+  const promoteToMvp = (index) => {
+    setLineup((current) => {
+      const mvpIndex = current.findIndex((lineupSlot) => lineupSlot.slot === "MVP");
+      if (mvpIndex < 0 || mvpIndex === index) {
+        return current;
+      }
+      const next = [...current];
+      const mvpPlayer = next[mvpIndex].player;
+      next[mvpIndex] = { ...next[mvpIndex], player: next[index].player };
+      next[index] = { ...next[index], player: mvpPlayer };
+      return next;
+    });
+  };
+
   if (!slate?.builder_enabled) {
     return (
       <section className="builder-section">
@@ -99,6 +141,11 @@ export default function LineupBuilder({ slate, lineup, setLineup, records = [], 
           <div className="builder-card-header">
             <h3>My Lineup</h3>
           </div>
+          {isSingleGame ? (
+            <p className="builder-note">
+              MVP costs and scores 1.5x. Recommendations prioritize raw ceiling, direct correlation, and coherent 4-2 or 3-3 game scripts.
+            </p>
+          ) : null}
           <div className="builder-table-shell">
             <table className="builder-table">
               <thead>
@@ -115,23 +162,35 @@ export default function LineupBuilder({ slate, lineup, setLineup, records = [], 
               <tbody>
                 {lineup.map((lineupSlot, index) => {
                   const player = lineupSlot.player;
-                  const blendedProjection = computeBlendedProjection(player || {});
+                  const slotSalary = computeSlotSalary(player, lineupSlot.slot, slate?.lineup_template);
+                  const slotProjection = computeSlotProjection(player, lineupSlot.slot, slate?.lineup_template);
+                  const salaryMultiplier = getSlotSalaryMultiplier(lineupSlot.slot, slate?.lineup_template);
                   return (
                     <tr key={`${slate.key}-${lineupSlot.slot}-${index}`}>
                       <td>{lineupSlot.slot}</td>
                       <td>
                         {player ? (
-                          <button type="button" className="inline-player-button remove" onClick={() => removePlayerFromLineup(index)}>
-                            {player.name}
-                          </button>
+                          <span className="lineup-player-actions">
+                            <button type="button" className="inline-player-button remove" onClick={() => removePlayerFromLineup(index)}>
+                              {player.name}
+                            </button>
+                            {isSingleGame && lineupSlot.slot !== "MVP" ? (
+                              <button type="button" className="mvp-button" onClick={() => promoteToMvp(index)}>
+                                Make MVP
+                              </button>
+                            ) : null}
+                          </span>
                         ) : (
                           <span className="placeholder-text">Open slot</span>
                         )}
                       </td>
                       <td>{player?.team || ""}</td>
-                      <td>{player?.builder_position || ""}</td>
-                      <td>{formatSalary(player?.salary)}</td>
-                      <td>{blendedProjection !== null && blendedProjection !== undefined ? formatNumber(blendedProjection) : ""}</td>
+                      <td>{player?.base_position || ""}</td>
+                      <td>
+                        {player ? formatSalary(slotSalary) : ""}
+                        {player && salaryMultiplier !== 1 ? ` (${salaryMultiplier}x)` : ""}
+                      </td>
+                      <td>{player ? formatNumber(slotProjection) : ""}</td>
                       <td>{player?.grade !== null && player?.grade !== undefined ? formatNumber(player.grade) : ""}</td>
                     </tr>
                   );
@@ -168,7 +227,7 @@ export default function LineupBuilder({ slate, lineup, setLineup, records = [], 
               </strong>
             </div>
             <div className="builder-stat">
-              <span className="builder-stat-label">Avg Per Open Slot</span>
+              <span className="builder-stat-label">Avg Base Salary / Open</span>
               <strong>{formatSalary(lineupStats.avgPerSlot)}</strong>
             </div>
             <div className="builder-stat">
@@ -179,6 +238,12 @@ export default function LineupBuilder({ slate, lineup, setLineup, records = [], 
               <span className="builder-stat-label">Total Projection</span>
               <strong>{formatNumber(lineupStats.totalProjection)}</strong>
             </div>
+            {isSingleGame ? (
+              <div className="builder-stat">
+                <span className="builder-stat-label">Team Split</span>
+                <strong>{lineupStats.teamSplit || "—"}</strong>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -191,7 +256,7 @@ export default function LineupBuilder({ slate, lineup, setLineup, records = [], 
               Fill Open Slots
             </button>
             <button type="button" className="assistant-button is-primary" onClick={() => applyOptimizedLineup(false)}>
-              Build Best Cash
+              {isSingleGame ? "Build Best Single Game" : "Build Best Cash"}
             </button>
           </div>
         </div>

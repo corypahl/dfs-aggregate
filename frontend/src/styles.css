@@ -595,6 +595,27 @@ h1 {
   color: #c2410c;
 }
 
+.lineup-player-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mvp-button {
+  padding: 2px 6px;
+  border: 1px solid #f5c84c;
+  border-radius: 999px;
+  background: #fff8d8;
+  color: #765300;
+  font-size: 0.68rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mvp-button:hover {
+  background: #ffefaa;
+}
+
 .name-badges {
   display: inline-flex;
   align-items: center;

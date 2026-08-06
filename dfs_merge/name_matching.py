@@ -133,6 +133,7 @@ def aggregate_player_projections(
             name=_preferred_name(fanduel_record, rotowire_record),
             fd_position=fanduel_record.position if fanduel_record else None,
             rw_position=rotowire_record.position if rotowire_record else None,
+            base_position=_preferred_base_position(fanduel_record, rotowire_record),
             team=_preferred_team(fanduel_record, rotowire_record),
             opponent=_preferred_opponent(fanduel_record, rotowire_record),
             game_spread=_preferred_raw_number("odds", "spread", fanduel_record, rotowire_record),
@@ -468,6 +469,21 @@ def _preferred_salary(
         return fanduel_record.salary
     if rotowire_record:
         return rotowire_record.salary
+    return None
+
+
+def _preferred_base_position(
+    fanduel_record: PlayerProjection | None,
+    rotowire_record: PlayerProjection | None,
+) -> str | None:
+    if rotowire_record:
+        roto_position = clean_name(str(rotowire_record.raw.get("rotoPos") or ""))
+        if roto_position:
+            return roto_position
+    if fanduel_record and fanduel_record.position:
+        return fanduel_record.position
+    if rotowire_record:
+        return rotowire_record.position
     return None
 
 

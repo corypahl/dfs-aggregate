@@ -6,6 +6,7 @@ This project collects public DFS data from FanDuel Research and RotoWire, then a
 - position and salary filters
 - percentile-based `Avg Proj`, `Avg Value`, and `Grade`
 - player highlight badges
+- FanDuel single-game lineups with one 1.5x MVP and five Flex slots
 - sport support for `NFL`, `NBA`, `WNBA`, `NHL`, `MLB`, `PGA`, `MMA`, `NASCAR`, `CFB`, `CBB`, `Cricket`, and `EPL`
 - a React frontend that renders the aggregate board
 
@@ -171,4 +172,5 @@ After deployment, the Pages site will serve the static `site/` build artifact.
 - Name matching uses exact matches first, then normalization, then salary-gated fuzzy matching.
 - The React report includes a RotoWire slate selector. FanDuel stays on its default slate, while the page can switch between the available RotoWire slates for the chosen sport.
 - Position pills are aggregated by base position. For example, an NBA player with `SF/PF` will match both `SF` and `PF`.
+- Single-game optimization weights raw projection more heavily than value, applies the MVP salary and scoring multipliers, requires players from both teams, and rewards correlated/game-script-aware constructions.
 - If a sport shows zero players, that usually means the public source pages are currently empty for that slate or season.
